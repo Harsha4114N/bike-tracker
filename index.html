@@ -3,30 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fleetline | Live Tracker Console</title>
+    <title>Fleetline | Global Fleet Tracking</title>
     
+    <!-- Leaflet.js Mapping -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+
     <style>
         :root {
-            --bg-color: #0f172a;
-            --panel-bg: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
             --accent: #0ea5e9;
             --success: #10b981;
             --danger: #ef4444;
-            --danger-hover: #dc2626;
             --border: #334155;
         }
 
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
+            background: var(--bg);
+            color: var(--text);
             margin: 0;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             height: 100vh;
@@ -37,51 +37,48 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding-bottom: 20px;
+            padding-bottom: 12px;
             border-bottom: 1px solid var(--border);
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            color: var(--accent);
-        }
+        .header h1 { margin: 0; font-size: 20px; color: var(--accent); }
 
-        .status-badge {
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 14px;
-            background: var(--panel-bg);
+        .status-pill {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            background: var(--panel);
             border: 1px solid var(--border);
+            margin-left: 6px;
         }
 
-        .grid-container {
+        .grid {
             display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 20px;
+            grid-template-columns: 320px 1fr;
+            gap: 16px;
             flex-grow: 1;
-            min-height: 0; /* Important for flex-child scrolling */
+            min-height: 0;
         }
 
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+        @media (max-width: 800px) {
+            .grid { grid-template-columns: 1fr; }
+            #map { height: 350px !important; }
         }
+
+        .sidebar { display: flex; flex-direction: column; gap: 14px; }
 
         .panel {
-            background: var(--panel-bg);
+            background: var(--panel);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 20px;
+            padding: 14px;
         }
 
         .panel h3 {
-            margin-top: 0;
-            margin-bottom: 15px;
-            font-size: 14px;
-            color: var(--text-muted);
+            margin: 0 0 10px 0;
+            font-size: 12px;
+            color: var(--muted);
             text-transform: uppercase;
             letter-spacing: 1px;
         }
@@ -91,48 +88,27 @@
             padding: 12px;
             border: none;
             border-radius: 6px;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: 0.2s;
         }
 
-        #connectBtn {
-            background-color: var(--success);
-            color: white;
-            margin-bottom: 10px;
-        }
-
-        #connectBtn:hover { background-color: #059669; }
-
+        #connectBtn { background: var(--success); color: white; margin-bottom: 8px; }
         #alarmBtn {
-            background-color: var(--panel-bg);
-            color: var(--danger);
-            border: 2px solid var(--danger);
-            height: 80px;
-            font-size: 18px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        #alarmBtn.active-btn {
-            background-color: var(--danger);
+            background: var(--danger);
             color: white;
-            opacity: 1;
-            cursor: pointer;
+            height: 50px;
+            font-size: 15px;
         }
 
-        #alarmBtn.active-btn.ringing {
-            animation: pulse 1.5s infinite;
+        #alarmBtn.ringing {
+            animation: pulse 1.2s infinite;
         }
 
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            70% { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
 
@@ -141,207 +117,209 @@
             height: 100%;
             border-radius: 8px;
             border: 1px solid var(--border);
-            background-color: #1a1a1a;
         }
 
         #logArea {
-            height: 200px;
+            height: 140px;
             overflow-y: auto;
-            background: #0f172a;
+            background: #090d16;
             border: 1px inset var(--border);
-            padding: 10px;
-            border-radius: 4px;
+            padding: 8px;
             font-family: monospace;
-            font-size: 13px;
+            font-size: 11px;
             color: var(--success);
+            border-radius: 4px;
         }
-
-        .log-entry { margin-bottom: 4px; }
-        .log-time { color: var(--text-muted); }
     </style>
 </head>
 <body>
 
     <div class="header">
         <div>
-            <h1>FLEETLINE</h1>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">BLE FLEET TRACKING CONSOLE</div>
+            <h1>FLEETLINE CLOUD</h1>
+            <div style="font-size: 11px; color: var(--muted);">REAL-TIME FLEET TELEMETRY CONSOLE</div>
         </div>
         <div>
-            <span id="bleStatus" class="status-badge">● BLE Disconnected</span>
-            <span id="gpsStatus" class="status-badge">● No GPS Fix</span>
+            <span id="roleBadge" class="status-pill">● Viewer Mode</span>
+            <span id="cloudStatus" class="status-pill">● Cloud: Connecting...</span>
         </div>
     </div>
 
-    <div class="grid-container">
-        
+    <div class="grid">
         <div class="sidebar">
             <div class="panel">
-                <h3>Connection</h3>
-                <button id="connectBtn">⚡ Connect to Tracker</button>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
-                    Target ID: Delivery_Bike_Tracker
-                </div>
+                <h3>Rider Bluetooth Gateway</h3>
+                <button id="connectBtn">⚡ Connect as Rider Bridge</button>
+                <div style="font-size: 11px; color: var(--muted);">Only the rider's phone needs to press this. Admins can just watch the live map.</div>
             </div>
 
             <div class="panel">
-                <h3>Remote Alarm</h3>
-                <button id="alarmBtn" disabled>
-                    🔔 SOUND ALARM
-                    <span style="font-size: 12px; font-weight: normal; margin-top: 5px;">Requires Connection</span>
-                </button>
+                <h3>Global Remote Alarm</h3>
+                <button id="alarmBtn">🔔 TRIGGER BIKE ALARM</button>
             </div>
 
-            <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <h3>Telemetry Log</h3>
+            <div class="panel" style="flex-grow: 1;">
+                <h3>Telemetry Activity Log</h3>
                 <div id="logArea">
-                    <div class="log-entry">System ready. Waiting for connection...</div>
+                    <div>Syncing with live cloud database...</div>
                 </div>
             </div>
         </div>
 
-        <div class="map-wrapper" style="position: relative; height: 100%;">
-            <div id="map"></div>
-        </div>
-
+        <div id="map"></div>
     </div>
 
     <script>
-        // --- Web Bluetooth Settings ---
+        // ==========================================
+        // 1. CONFIGURATION
+        // REPLACE WITH YOUR FIREBASE REALTIME DATABASE URL:
+        const FIREBASE_DB_URL = "https://delivery-tracker-e1fef-default-rtdb.firebaseio.com/";
+        // ==========================================
+
         const SERVICE_UUID = "4fafc201-1bf5-4fd5-9365-1c7356d81b31";
-        const GPS_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";     // Read/Notify from ESP32
-        const BUZZER_CHAR_UUID = "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d";  // Write to ESP32
+        const GPS_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+        const BUZZER_CHAR_UUID = "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d";
 
-        let bleDevice, buzzerCharacteristic;
-        let isAlarmOn = false;
+        let bleDevice, buzzerChar;
+        let isRiderBridge = false;
+        let isAlarmActive = false;
 
-        // --- Map Initialization ---
-        // Using a dark CartoDB basemap for the SaaS look
-        const map = L.map('map').setView([20.5937, 78.9629], 5); // Default to India
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
-            maxZoom: 19
-        }).addTo(map);
+        // Leaflet Map Setup
+        const map = L.map('map').setView([20.5937, 78.9629], 5);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        let bikeMarker;
-        let pathLine = L.polyline([], {color: '#0ea5e9', weight: 3}).addTo(map);
+        let bikeMarker = null;
+        let pathTrail = L.polyline([], { color: '#0ea5e9', weight: 4 }).addTo(map);
 
-        // --- UI Elements ---
-        const btnConnect = document.getElementById('connectBtn');
-        const btnAlarm = document.getElementById('alarmBtn');
         const logArea = document.getElementById('logArea');
-        const bleStatus = document.getElementById('bleStatus');
-        const gpsStatus = document.getElementById('gpsStatus');
+        const roleBadge = document.getElementById('roleBadge');
+        const cloudStatus = document.getElementById('cloudStatus');
+        const alarmBtn = document.getElementById('alarmBtn');
 
         function addLog(msg) {
             const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            logArea.innerHTML = `<div class="log-entry"><span class="log-time">[${time}]</span> ${msg}</div>` + logArea.innerHTML;
+            logArea.innerHTML = `<div><span style="color:var(--muted)">[${time}]</span> ${msg}</div>` + logArea.innerHTML;
         }
 
-        // --- Bluetooth Connection Logic ---
-        btnConnect.addEventListener('click', async () => {
+        // ==========================================
+        // 2. CLOUD SYNC: LISTENER FOR ALL USERS (ADMINS & VISITORS)
+        // ==========================================
+        async function fetchCloudData() {
             try {
-                addLog("Requesting device connection...");
+                const res = await fetch(`${FIREBASE_DB_URL}/tracker.json`);
+                const data = await res.json();
                 
+                if (data) {
+                    cloudStatus.style.color = "var(--success)";
+                    cloudStatus.innerText = "● Cloud Connected";
+
+                    // Update map position from Cloud
+                    if (data.lat && data.lng) {
+                        const lat = parseFloat(data.lat);
+                        const lng = parseFloat(data.lng);
+
+                        if (!bikeMarker) {
+                            bikeMarker = L.marker([lat, lng]).addTo(map);
+                            map.setView([lat, lng], 17);
+                        } else {
+                            bikeMarker.setLatLng([lat, lng]);
+                        }
+                        pathTrail.addLatLng([lat, lng]);
+                    }
+
+                    // Sync Alarm UI state from Cloud
+                    if (data.alarm !== undefined) {
+                        isAlarmActive = data.alarm;
+                        if (isAlarmActive) {
+                            alarmBtn.classList.add('ringing');
+                            alarmBtn.innerHTML = "🔕 SILENCE ALARM";
+                        } else {
+                            alarmBtn.classList.remove('ringing');
+                            alarmBtn.innerHTML = "🔔 TRIGGER BIKE ALARM";
+                        }
+
+                        // If this phone is the Rider Bridge, enforce the BLE command
+                        if (isRiderBridge && buzzerChar) {
+                            const payload = isAlarmActive ? "1" : "0";
+                            await buzzerChar.writeValue(new TextEncoder().encode(payload));
+                        }
+                    }
+                }
+            } catch (err) {
+                cloudStatus.style.color = "var(--danger)";
+                cloudStatus.innerText = "● Cloud Offline";
+            }
+        }
+
+        // Poll Firebase every 2 seconds for continuous cloud sync
+        setInterval(fetchCloudData, 2000);
+
+        // ==========================================
+        // 3. GLOBAL ALARM TOGGLE (ANYONE CAN PRESS)
+        // ==========================================
+        alarmBtn.addEventListener('click', async () => {
+            const nextState = !isAlarmActive;
+            addLog(`Admin set alarm state to: ${nextState ? 'ON' : 'OFF'}`);
+            
+            // Push update to Firebase Cloud
+            await fetch(`${FIREBASE_DB_URL}/tracker/alarm.json`, {
+                method: 'PUT',
+                body: JSON.stringify(nextState)
+            });
+        });
+
+        // ==========================================
+        // 4. RIDER BLE GATEWAY (PHONE TETHER)
+        // ==========================================
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                addLog("Scanning for Delivery_Bike_Tracker...");
                 bleDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'Delivery_Bike_Tracker' }],
                     optionalServices: [SERVICE_UUID]
                 });
 
-                // Handle disconnection
-                bleDevice.addEventListener('gattserverdisconnected', () => {
-                    addLog("❌ Device disconnected.");
-                    bleStatus.style.color = "inherit";
-                    bleStatus.innerText = "● BLE Disconnected";
-                    btnAlarm.disabled = true;
-                    btnAlarm.classList.remove('active-btn', 'ringing');
-                });
-
-                addLog("Connecting to GATT Server...");
                 const server = await bleDevice.gatt.connect();
-                
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                
-                // 1. Setup GPS Notifications
+
+                // Subscribe to GPS
                 const gpsChar = await service.getCharacteristic(GPS_CHAR_UUID);
                 await gpsChar.startNotifications();
-                gpsChar.addEventListener('characteristicvaluechanged', handleGpsUpdate);
-                
-                // 2. Setup Buzzer Write Characteristic
-                buzzerCharacteristic = await service.getCharacteristic(BUZZER_CHAR_UUID);
+                gpsChar.addEventListener('characteristicvaluechanged', handleBleGps);
 
-                // UI Updates on Success
-                addLog("✅ Connected successfully!");
-                bleStatus.style.color = "var(--success)";
-                bleStatus.innerText = "● BLE Connected";
-                
-                // Enable Alarm Button
-                btnAlarm.disabled = false;
-                btnAlarm.classList.add('active-btn');
-                btnAlarm.innerHTML = "🔔 TRIGGER ALARM";
+                // Handle Buzzer Characteristic
+                buzzerChar = await service.getCharacteristic(BUZZER_CHAR_UUID);
+
+                isRiderBridge = true;
+                roleBadge.style.color = "var(--success)";
+                roleBadge.innerText = "● Active Rider Gateway";
+                addLog("✅ Bluetooth Tether established! Pushing coordinates to cloud.");
 
             } catch (error) {
-                addLog("Error: " + error.message);
+                addLog("Bluetooth Error: " + error.message);
             }
         });
 
-        // --- Handle Incoming GPS Data ---
-        function handleGpsUpdate(event) {
-            const value = new TextDecoder().decode(event.target.value);
-            const coords = value.split(',');
+        // Whenever ESP32 sends GPS over BLE -> Phone uploads to Firebase Cloud
+        async function handleBleGps(event) {
+            const raw = new TextDecoder().decode(event.target.value);
+            const [lat, lng] = raw.split(',');
 
-            if(coords.length === 2) {
-                const lat = parseFloat(coords[0]);
-                const lng = parseFloat(coords[1]);
-
-                gpsStatus.style.color = "var(--success)";
-                gpsStatus.innerText = "● GPS Lock Active";
-                addLog(`📍 Location update: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-
-                // Update Map
-                if(!bikeMarker) {
-                    bikeMarker = L.marker([lat, lng]).addTo(map);
-                    map.setView([lat, lng], 18); // Zoom in close on first fix
-                } else {
-                    bikeMarker.setLatLng([lat, lng]);
-                    map.panTo([lat, lng]);
-                }
+            if (lat && lng) {
+                addLog(`Relaying to Cloud: ${lat}, ${lng}`);
                 
-                // Add point to trail
-                pathLine.addLatLng([lat, lng]);
+                // Upload live location to Firebase
+                await fetch(`${FIREBASE_DB_URL}/tracker.json`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng),
+                        updatedAt: new Date().toISOString()
+                    })
+                });
             }
         }
-
-        // --- Handle Alarm Button Click ---
-        btnAlarm.addEventListener('click', async () => {
-            if (!buzzerCharacteristic) return;
-
-            try {
-                isAlarmOn = !isAlarmOn; // Toggle state
-                
-                // The ESP32 expects "1" for ON, "0" for OFF
-                const payload = isAlarmOn ? "1" : "0";
-                const encoder = new TextEncoder();
-                
-                addLog(`Sending alarm command: ${payload}`);
-                await buzzerCharacteristic.writeValue(encoder.encode(payload));
-
-                // Update Button UI based on state
-                if(isAlarmOn) {
-                    btnAlarm.classList.add('ringing');
-                    btnAlarm.innerHTML = "🔕 STOP ALARM";
-                    addLog("🔊 ALARM TRIGGERED!");
-                } else {
-                    btnAlarm.classList.remove('ringing');
-                    btnAlarm.innerHTML = "🔔 TRIGGER ALARM";
-                    addLog("🔈 Alarm silenced.");
-                }
-
-            } catch (error) {
-                addLog("Error sending alarm command: " + error);
-                isAlarmOn = !isAlarmOn; // Revert state if failed
-            }
-        });
     </script>
 </body>
 </html>
