@@ -1,11 +1,10 @@
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fleetline | Global Fleet Tracking</title>
+    <title>Fleetline | Fleet Management Portal</title>
     
-    <!-- Leaflet.js Mapping -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -33,6 +32,53 @@
             box-sizing: border-box;
         }
 
+        /* --- LOGIN MODAL --- */
+        #loginModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .login-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 30px;
+            border-radius: 12px;
+            width: 320px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        .login-card h2 { color: var(--accent); margin-top: 0; margin-bottom: 8px; }
+        .login-card p { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+
+        .role-btn {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-rider { background: #0284c7; color: white; }
+        .btn-rider:hover { background: #0369a1; }
+
+        .btn-admin { background: #334155; color: white; }
+        .btn-admin:hover { background: #475569; }
+
+        /* --- COMMON HEADER --- */
         .header {
             display: flex;
             justify-content: space-between;
@@ -53,8 +99,72 @@
             margin-left: 6px;
         }
 
-        .grid {
-            display: grid;
+        /* --- RIDER VIEW (MINIMALIST) --- */
+        #riderView {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+        }
+
+        .rider-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .rider-status-box {
+            background: #090d16;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        .status-row:last-child { margin-bottom: 0; }
+
+        .btn-connect {
+            background: var(--success);
+            color: white;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn-disconnect {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            display: none;
+        }
+
+        /* --- ADMIN VIEW (FULL DASHBOARD) --- */
+        #adminView {
+            display: none;
             grid-template-columns: 320px 1fr;
             gap: 16px;
             flex-grow: 1;
@@ -62,7 +172,7 @@
         }
 
         @media (max-width: 800px) {
-            .grid { grid-template-columns: 1fr; }
+            #adminView { grid-template-columns: 1fr; }
             #map { height: 350px !important; }
         }
 
@@ -83,28 +193,20 @@
             letter-spacing: 1px;
         }
 
-        button {
+        #alarmBtn {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             border: none;
             border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
+            font-size: 15px;
+            font-weight: bold;
             cursor: pointer;
-            transition: 0.2s;
-        }
-
-        #connectBtn { background: var(--success); color: white; margin-bottom: 8px; }
-        #alarmBtn {
             background: var(--danger);
             color: white;
-            height: 50px;
-            font-size: 15px;
+            height: 55px;
         }
 
-        #alarmBtn.ringing {
-            animation: pulse 1.2s infinite;
-        }
+        #alarmBtn.ringing { animation: pulse 1.2s infinite; }
 
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
@@ -120,7 +222,7 @@
         }
 
         #logArea {
-            height: 140px;
+            height: 180px;
             overflow-y: auto;
             background: #090d16;
             border: 1px inset var(--border);
@@ -130,38 +232,76 @@
             color: var(--success);
             border-radius: 4px;
         }
+
+        .switch-role-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div>
-            <h1>FLEETLINE CLOUD</h1>
-            <div style="font-size: 11px; color: var(--muted);">REAL-TIME FLEET TELEMETRY CONSOLE</div>
-        </div>
-        <div>
-            <span id="roleBadge" class="status-pill">● Viewer Mode</span>
-            <span id="cloudStatus" class="status-pill">● Cloud: Connecting...</span>
+    <div id="loginModal">
+        <div class="login-card">
+            <h2>FLEETLINE PORTAL</h2>
+            <p>Select your access role to continue:</p>
+            <button class="role-btn btn-rider" onclick="selectRole('rider')">
+                🚴 Log in as Rider
+            </button>
+            <button class="role-btn btn-admin" onclick="selectRole('admin')">
+                🛡️ Log in as Admin
+            </button>
         </div>
     </div>
 
-    <div class="grid">
-        <div class="sidebar">
-            <div class="panel">
-                <h3>Rider Bluetooth Gateway</h3>
-                <button id="connectBtn">⚡ Connect as Rider Bridge</button>
-                <div style="font-size: 11px; color: var(--muted);">Only the rider's phone needs to press this. Admins can just watch the live map.</div>
+    <div class="header">
+        <div>
+            <h1>FLEETLINE CLOUD</h1>
+            <div style="font-size: 11px; color: var(--muted);" id="subHeader">FLEET PORTAL</div>
+        </div>
+        <div>
+            <span id="roleBadge" class="status-pill">● Not Selected</span>
+            <button class="switch-role-btn" onclick="switchRole()">Switch Role</button>
+        </div>
+    </div>
+
+    <div id="riderView">
+        <div class="rider-card">
+            <h2 style="margin: 0 0 6px 0; font-size: 20px;">Rider Gateway Console</h2>
+            <p style="color: var(--muted); font-size: 13px; margin: 0;">Connect your phone to the bike's Bluetooth tracker to begin transmitting location.</p>
+
+            <div class="rider-status-box">
+                <div class="status-row">
+                    <span style="color: var(--muted);">Bluetooth Tracker:</span>
+                    <strong id="riderBleStatus" style="color: var(--danger);">Disconnected</strong>
+                </div>
+                <div class="status-row">
+                    <span style="color: var(--muted);">Live GPS Cloud Sync:</span>
+                    <strong id="riderSyncStatus" style="color: var(--muted);">Waiting for Connection...</strong>
+                </div>
             </div>
 
+            <button id="riderConnectBtn" class="btn-connect">⚡ Connect to Tracker</button>
+            <button id="riderDisconnectBtn" class="btn-disconnect">Disconnect Tracker</button>
+        </div>
+    </div>
+
+    <div id="adminView">
+        <div class="sidebar">
             <div class="panel">
                 <h3>Global Remote Alarm</h3>
                 <button id="alarmBtn">🔔 TRIGGER BIKE ALARM</button>
             </div>
 
             <div class="panel" style="flex-grow: 1;">
-                <h3>Telemetry Activity Log</h3>
+                <h3>Live Telemetry Feed</h3>
                 <div id="logArea">
-                    <div>Syncing with live cloud database...</div>
+                    <div>Syncing telemetry from cloud database...</div>
                 </div>
             </div>
         </div>
@@ -171,9 +311,9 @@
 
     <script>
         // ==========================================
-        // 1. CONFIGURATION
+        // CONFIGURATION
         // REPLACE WITH YOUR FIREBASE REALTIME DATABASE URL:
-        const FIREBASE_DB_URL = "https://delivery-tracker-e1fef-default-rtdb.firebaseio.com/";
+        const FIREBASE_DB_URL = "https://delivery-tracker-e1fef-default-rtdb.firebaseio.com";
         // ==========================================
 
         const SERVICE_UUID = "4fafc201-1bf5-4fd5-9365-1c7356d81b31";
@@ -181,28 +321,74 @@
         const BUZZER_CHAR_UUID = "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d";
 
         let bleDevice, buzzerChar;
-        let isRiderBridge = false;
+        let activeRole = null;
         let isAlarmActive = false;
 
-        // Leaflet Map Setup
-        const map = L.map('map').setView([20.5937, 78.9629], 5);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
+        // Map setup (Admin view)
+        let map = null;
         let bikeMarker = null;
-        let pathTrail = L.polyline([], { color: '#0ea5e9', weight: 4 }).addTo(map);
+        let pathTrail = null;
 
-        const logArea = document.getElementById('logArea');
+        // Elements
+        const loginModal = document.getElementById('loginModal');
+        const riderView = document.getElementById('riderView');
+        const adminView = document.getElementById('adminView');
         const roleBadge = document.getElementById('roleBadge');
-        const cloudStatus = document.getElementById('cloudStatus');
+        const subHeader = document.getElementById('subHeader');
+
+        const riderBleStatus = document.getElementById('riderBleStatus');
+        const riderSyncStatus = document.getElementById('riderSyncStatus');
+        const riderConnectBtn = document.getElementById('riderConnectBtn');
+        const riderDisconnectBtn = document.getElementById('riderDisconnectBtn');
+
         const alarmBtn = document.getElementById('alarmBtn');
+        const logArea = document.getElementById('logArea');
 
         function addLog(msg) {
+            if (!logArea) return;
             const time = new Date().toLocaleTimeString('en-US', { hour12: false });
             logArea.innerHTML = `<div><span style="color:var(--muted)">[${time}]</span> ${msg}</div>` + logArea.innerHTML;
         }
 
+        // --- ROLE MANAGEMENT ---
+        function selectRole(role) {
+            activeRole = role;
+            loginModal.style.display = 'none';
+
+            if (role === 'rider') {
+                roleBadge.style.color = "var(--accent)";
+                roleBadge.innerText = "● Role: Rider";
+                subHeader.innerText = "RIDER GATEWAY MODE";
+                riderView.style.display = 'flex';
+                adminView.style.display = 'none';
+            } else {
+                roleBadge.style.color = "var(--success)";
+                roleBadge.innerText = "● Role: Admin";
+                subHeader.innerText = "ADMIN LIVE MONITORING DASHBOARD";
+                riderView.style.display = 'none';
+                adminView.style.display = 'grid';
+
+                initMapIfNeeded();
+            }
+        }
+
+        function switchRole() {
+            loginModal.style.display = 'flex';
+            riderView.style.display = 'none';
+            adminView.style.display = 'none';
+        }
+
+        function initMapIfNeeded() {
+            if (!map) {
+                map = L.map('map').setView([20.5937, 78.9629], 5);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+                pathTrail = L.polyline([], { color: '#0ea5e9', weight: 4 }).addTo(map);
+            }
+            setTimeout(() => { map.invalidateSize(); }, 200);
+        }
+
         // ==========================================
-        // 2. CLOUD SYNC: LISTENER FOR ALL USERS (ADMINS & VISITORS)
+        // CLOUD SYNC (FIREBASE POLLING)
         // ==========================================
         async function fetchCloudData() {
             try {
@@ -210,11 +396,8 @@
                 const data = await res.json();
                 
                 if (data) {
-                    cloudStatus.style.color = "var(--success)";
-                    cloudStatus.innerText = "● Cloud Connected";
-
-                    // Update map position from Cloud
-                    if (data.lat && data.lng) {
+                    // 1. Map Updates (Admin Mode)
+                    if (activeRole === 'admin' && data.lat && data.lng) {
                         const lat = parseFloat(data.lat);
                         const lng = parseFloat(data.lng);
 
@@ -227,9 +410,10 @@
                         pathTrail.addLatLng([lat, lng]);
                     }
 
-                    // Sync Alarm UI state from Cloud
+                    // 2. Alarm State Syncing (Both Roles)
                     if (data.alarm !== undefined) {
                         isAlarmActive = data.alarm;
+                        
                         if (isAlarmActive) {
                             alarmBtn.classList.add('ringing');
                             alarmBtn.innerHTML = "🔕 SILENCE ALARM";
@@ -238,30 +422,27 @@
                             alarmBtn.innerHTML = "🔔 TRIGGER BIKE ALARM";
                         }
 
-                        // If this phone is the Rider Bridge, enforce the BLE command
-                        if (isRiderBridge && buzzerChar) {
+                        // If Rider is connected over Bluetooth, push physical command to ESP32
+                        if (activeRole === 'rider' && buzzerChar) {
                             const payload = isAlarmActive ? "1" : "0";
                             await buzzerChar.writeValue(new TextEncoder().encode(payload));
                         }
                     }
                 }
             } catch (err) {
-                cloudStatus.style.color = "var(--danger)";
-                cloudStatus.innerText = "● Cloud Offline";
+                // Ignore silent errors during cloud sync
             }
         }
 
-        // Poll Firebase every 2 seconds for continuous cloud sync
         setInterval(fetchCloudData, 2000);
 
         // ==========================================
-        // 3. GLOBAL ALARM TOGGLE (ANYONE CAN PRESS)
+        // ADMIN ALARM TRIGGER
         // ==========================================
         alarmBtn.addEventListener('click', async () => {
             const nextState = !isAlarmActive;
-            addLog(`Admin set alarm state to: ${nextState ? 'ON' : 'OFF'}`);
+            addLog(`Admin toggled alarm: ${nextState ? 'ON' : 'OFF'}`);
             
-            // Push update to Firebase Cloud
             await fetch(`${FIREBASE_DB_URL}/tracker/alarm.json`, {
                 method: 'PUT',
                 body: JSON.stringify(nextState)
@@ -269,46 +450,70 @@
         });
 
         // ==========================================
-        // 4. RIDER BLE GATEWAY (PHONE TETHER)
+        // RIDER BLUETOOTH GATEWAY LOGIC
         // ==========================================
-        document.getElementById('connectBtn').addEventListener('click', async () => {
+        riderConnectBtn.addEventListener('click', async () => {
             try {
-                addLog("Scanning for Delivery_Bike_Tracker...");
+                riderSyncStatus.innerText = "Searching for Delivery_Bike_Tracker...";
+                
                 bleDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'Delivery_Bike_Tracker' }],
                     optionalServices: [SERVICE_UUID]
                 });
 
+                bleDevice.addEventListener('gattserverdisconnected', onDeviceDisconnected);
+
                 const server = await bleDevice.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
 
-                // Subscribe to GPS
+                // GPS Characteristic
                 const gpsChar = await service.getCharacteristic(GPS_CHAR_UUID);
                 await gpsChar.startNotifications();
                 gpsChar.addEventListener('characteristicvaluechanged', handleBleGps);
 
-                // Handle Buzzer Characteristic
+                // Buzzer Characteristic
                 buzzerChar = await service.getCharacteristic(BUZZER_CHAR_UUID);
 
-                isRiderBridge = true;
-                roleBadge.style.color = "var(--success)";
-                roleBadge.innerText = "● Active Rider Gateway";
-                addLog("✅ Bluetooth Tether established! Pushing coordinates to cloud.");
+                // UI Updates for Rider
+                riderBleStatus.style.color = "var(--success)";
+                riderBleStatus.innerText = "Connected";
+                riderSyncStatus.style.color = "var(--success)";
+                riderSyncStatus.innerText = "Active Sync (Transmitting to Cloud)";
+                
+                riderConnectBtn.style.display = "none";
+                riderDisconnectBtn.style.display = "block";
 
             } catch (error) {
-                addLog("Bluetooth Error: " + error.message);
+                riderSyncStatus.style.color = "var(--danger)";
+                riderSyncStatus.innerText = "Bluetooth Error: " + error.message;
             }
         });
 
-        // Whenever ESP32 sends GPS over BLE -> Phone uploads to Firebase Cloud
+        riderDisconnectBtn.addEventListener('click', () => {
+            if (bleDevice && bleDevice.gatt.connected) {
+                bleDevice.gatt.disconnect();
+            }
+        });
+
+        function onDeviceDisconnected() {
+            riderBleStatus.style.color = "var(--danger)";
+            riderBleStatus.innerText = "Disconnected";
+            riderSyncStatus.style.color = "var(--muted)";
+            riderSyncStatus.innerText = "Sync Paused (Tracker Disconnected)";
+
+            riderConnectBtn.style.display = "block";
+            riderDisconnectBtn.style.display = "none";
+        }
+
         async function handleBleGps(event) {
             const raw = new TextDecoder().decode(event.target.value);
             const [lat, lng] = raw.split(',');
 
             if (lat && lng) {
-                addLog(`Relaying to Cloud: ${lat}, ${lng}`);
-                
-                // Upload live location to Firebase
+                riderSyncStatus.style.color = "var(--success)";
+                riderSyncStatus.innerText = `Updating: Lat ${parseFloat(lat).toFixed(4)}, Lng ${parseFloat(lng).toFixed(4)}`;
+
+                // Push coordinates to Firebase Cloud
                 await fetch(`${FIREBASE_DB_URL}/tracker.json`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
