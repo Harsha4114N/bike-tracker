@@ -1,1 +1,164 @@
 
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Secure Fleet Tracker Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #e9ecef; }
+        #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 320px; text-align: center; }
+        .input-field { width: 90%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; }
+        .btn { background: #0056b3; color: white; padding: 14px; width: 100%; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; }
+        .btn:hover { background: #004494; }
+        #dashboard { display: none; height: 100vh; flex-direction: column; }
+        #control-panel { background: #1a252f; padding: 15px; display: flex; justify-content: space-between; align-items: center; color: white; }
+        select { padding: 10px; border-radius: 5px; font-weight: bold; width: 300px; }
+        #map { flex-grow: 1; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>Admin Portal</h2>
+            <p style="color: gray; font-size: 13px;">Authorized Access Only</p>
+            <input type="email" id="email" class="input-field" placeholder="Admin Email">
+            <input type="password" id="password" class="input-field" placeholder="Password">
+            <button class="btn" onclick="adminLogin()">SECURE LOGIN</button>
+            <p id="error-msg" style="color: red; font-size: 13px; display: none; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard">
+        <div id="control-panel">
+            <h3 style="margin:0;">🚲 Live Fleet & Route History</h3>
+            <select id="ride-selector" onchange="switchMode()">
+                <option value="live">🔴 LIVE TRACKING</option>
+            </select>
+            <button onclick="location.reload()" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script>
+        // Securely pull configuration from environment variables or runtime injection
+        const firebaseConfig = {
+            apiKey: window.env?.FIREBASE_API_KEY || "AIzaSyB8ldMOqZIzZrJghi0ykiZBrHEl2SNnTsU", // Fallback for testing, secure on Vercel
+            authDomain: "delivery-tracker-e1fef.firebaseapp.com",
+            databaseURL: "https://delivery-tracker-e1fef-default-rtdb.firebaseio.com",
+            projectId: "delivery-tracker-e1fef",
+            storageBucket: "delivery-tracker-e1fef.firebasestorage.app",
+            messagingSenderId: "481064109063",
+            appId: "1:481064109063:web:08c552023c98b7fe3996a2"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+
+        let map, marker, routeLine;
+        let liveListener;
+
+        function adminLogin() {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            
+            firebase.auth().signInWithEmailAndPassword(email, pass)
+                .then(() => {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'flex';
+                    initMap();
+                    fetchRideHistory();
+                    switchMode();
+                })
+                .catch((error) => {
+                    const errBox = document.getElementById('error-msg');
+                    errBox.innerText = "Access Denied: " + error.message;
+                    errBox.style.display = 'block';
+                });
+        }
+
+        function initMap() {
+            map = L.map('map').setView([12.9716, 77.5946], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        function fetchRideHistory() {
+            firebase.database().ref('/tracker/history').once('value', (snapshot) => {
+                const selector = document.getElementById('ride-selector');
+                snapshot.forEach((child) => {
+                    const rideId = child.key; 
+                    const opt = document.createElement('option');
+                    opt.value = rideId;
+                    opt.innerText = "🗓️ Ride: " + new Date(parseInt(rideId)).toLocaleString();
+                    selector.appendChild(opt);
+                });
+            });
+        }
+
+        function switchMode() {
+            const mode = document.getElementById('ride-selector').value;
+            
+            if (liveListener) firebase.database().ref('/tracker/live').off('value', liveListener);
+            if (marker) map.removeLayer(marker);
+            if (routeLine) map.removeLayer(routeLine);
+
+            if (mode === 'live') {
+                startLiveTracking();
+            } else {
+                loadPastRoute(mode);
+            }
+        }
+
+        function startLiveTracking() {
+            const bikeIcon = L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                iconSize: [25, 41], iconAnchor: [12, 41]
+            });
+            marker = L.marker([12.9716, 77.5946], {icon: bikeIcon}).addTo(map);
+
+            liveListener = firebase.database().ref('/tracker/live').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.lat && data.lng) {
+                    const newPos = new L.LatLng(data.lat, data.lng);
+                    marker.setLatLng(newPos);
+                    map.setView(newPos, 16);
+                }
+            });
+        }
+
+        function loadPastRoute(rideId) {
+            firebase.database().ref('/tracker/history/' + rideId).once('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                let coordinates = [];
+                for (let key in data) {
+                    if (data[key].lat && data[key].lng) {
+                        coordinates.push([data[key].lat, data[key].lng]);
+                    }
+                }
+
+                if (coordinates.length > 0) {
+                    routeLine = L.polyline(coordinates, {color: '#0056b3', weight: 5, opacity: 0.8}).addTo(map);
+                    map.fitBounds(routeLine.getBounds());
+                    
+                    const endIcon = L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                        iconSize: [25, 41], iconAnchor: [12, 41]
+                    });
+                    marker = L.marker(coordinates[coordinates.length - 1], {icon: endIcon}).addTo(map);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
