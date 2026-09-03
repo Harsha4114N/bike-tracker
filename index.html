@@ -1,7 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Autonomous Fleet Tracker</title>
+    <meta charset="UTF-8">
+    <title>Enterprise Fleet Command</title>
+    
+    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
@@ -11,46 +14,109 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #e9ecef; }
-        #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 320px; text-align: center; }
-        .input-field { width: 90%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; }
-        .btn { background: #0056b3; color: white; padding: 14px; width: 100%; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; }
+        /* BASE & DARK THEME */
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #ffffff; overflow: hidden; }
+        
+        /* LOGIN SCREEN */
+        #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0a0a0a; z-index: 9999; position: absolute; width: 100%; }
+        .login-box { background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); width: 320px; text-align: center; border: 1px solid #333; }
+        .input-field { width: 90%; padding: 12px; margin: 10px 0; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 6px; }
+        .btn { background: #007bff; color: white; padding: 14px; width: 100%; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.3s; }
+        .btn:hover { background: #0056b3; }
+
+        /* DASHBOARD LAYOUT */
         #dashboard { display: none; height: 100vh; flex-direction: column; }
-        #control-panel { background: #1a252f; padding: 15px; display: flex; justify-content: space-between; align-items: center; color: white; }
-        select { padding: 10px; border-radius: 5px; font-weight: bold; width: 300px; }
-        #map { flex-grow: 1; width: 100%; }
+        
+        /* TOP NAVIGATION */
+        #top-nav { background: #1a1a1a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+        .nav-controls { display: flex; align-items: center; gap: 20px; }
+        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 250px; cursor: pointer; }
+        
+        /* HARDWARE STATUS HEARTBEAT */
+        .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; padding: 5px 15px; background: #2a2a2a; border-radius: 20px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
+        .dot.live { background: #28a745; box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); animation: pulse 1.5s infinite; }
+        .dot.offline { background: #dc3545; }
+        
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
+
+        /* MAIN CONTENT AREA */
+        #content-area { display: flex; flex-grow: 1; height: calc(100vh - 70px); }
+        
+        /* MAP */
+        #map { flex-grow: 1; height: 100%; }
+
+        /* ANALYTICS SIDEBAR */
+        #sidebar { width: 300px; background: #1a1a1a; border-left: 1px solid #333; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .stat-box { background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #007bff; margin-top: 5px; }
+        .stat-label { font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        
+        #play-btn { background: #28a745; display: none; }
+        #play-btn:hover { background: #218838; }
+        #play-btn:disabled { background: #555; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
-    <!-- Secure Login -->
+    <!-- Secure Login Overlay -->
     <div id="login-screen">
         <div class="login-box">
-            <h2>Admin Portal</h2>
-            <p style="color: gray; font-size: 13px;">Authorized Access Only</p>
+            <h2 style="margin-top:0;">Command Center</h2>
+            <p style="color: #aaa; font-size: 13px; margin-bottom: 25px;">Encrypted Access Only</p>
             <input type="email" id="email" class="input-field" placeholder="Admin Email">
             <input type="password" id="password" class="input-field" placeholder="Password">
-            <button class="btn" onclick="adminLogin()">SECURE LOGIN</button>
-            <p id="error-msg" style="color: red; font-size: 13px; display: none; margin-top: 10px;"></p>
+            <button class="btn" onclick="adminLogin()">AUTHENTICATE</button>
+            <p id="error-msg" style="color: #ff4d4d; font-size: 13px; display: none; margin-top: 15px;"></p>
         </div>
     </div>
 
-    <!-- Dashboard -->
+    <!-- Main Dashboard -->
     <div id="dashboard">
-        <div id="control-panel">
-            <h3 style="margin:0;">🚲 Fleet GPS System</h3>
-            <select id="ride-selector" onchange="switchMode()">
-                <option value="live">🔴 LIVE TRACKING</option>
-            </select>
-            <button onclick="location.reload()" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
+        
+        <div id="top-nav">
+            <h3 style="margin:0; color: #fff;">🛰️ Fleet Telemetry</h3>
+            <div class="nav-controls">
+                <div class="status-indicator">
+                    <div id="status-dot" class="dot offline"></div>
+                    <span id="status-text">OFFLINE</span>
+                </div>
+                <select id="ride-selector" onchange="switchMode()">
+                    <option value="live">🔴 LIVE TRACKING</option>
+                </select>
+                <button onclick="location.reload()" style="padding: 8px 15px; background: transparent; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
+            </div>
         </div>
-        <div id="map"></div>
+
+        <div id="content-area">
+            <div id="map"></div>
+            
+            <div id="sidebar">
+                <h4 style="margin: 0; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 10px;">RIDE ANALYTICS</h4>
+                
+                <div class="stat-box">
+                    <div class="stat-label">Total Distance</div>
+                    <div id="stat-dist" class="stat-value">-- km</div>
+                </div>
+                
+                <div class="stat-box">
+                    <div class="stat-label">Data Points</div>
+                    <div id="stat-points" class="stat-value">--</div>
+                </div>
+
+                <button id="play-btn" class="btn" onclick="playAnimatedRoute()">▶ PLAY ROUTE</button>
+            </div>
+        </div>
+        
     </div>
 
     <script>
-        // 1. OBFUSCATED API KEY (Bypasses GitHub Security Scanner)
-        // 1. OBFUSCATED API KEY (Corrected)
+        // --- 1. CONFIGURATION ---
+        // (Replace these with your exact split keys from earlier)
         const keyPartA = "AIzaSyB8IdMO";
         const keyPartB = "qZlzZrJghi0y";
         const keyPartC = "kiZBrHEI2SNnTsU";
@@ -59,108 +125,33 @@
             apiKey: keyPartA + keyPartB + keyPartC,
             authDomain: "delivery-tracker-e1fef.firebaseapp.com",
             databaseURL: "https://delivery-tracker-e1fef-default-rtdb.firebaseio.com",
-            projectId: "delivery-tracker-e1fef",
-            storageBucket: "delivery-tracker-e1fef.firebasestorage.app",
-            messagingSenderId: "481064109063",
-            appId: "1:481064109063:web:08c552023c98b7fe3996a2"
+            projectId: "delivery-tracker-e1fef"
         };
         firebase.initializeApp(firebaseConfig);
-        let map, marker, routeLine, liveListener;
 
-        // 2. AUTHENTICATION
+        let map;
+
+        // --- 2. INITIALIZATION ---
         function adminLogin() {
-            const email = document.getElementById('email').value;
-            const pass = document.getElementById('password').value;
-            
-            firebase.auth().signInWithEmailAndPassword(email, pass)
-                .then(() => {
-                    document.getElementById('login-screen').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'flex';
-                    initMap();
-                    fetchRideHistory();
-                    switchMode();
-                })
-                .catch((error) => {
-                    const errBox = document.getElementById('error-msg');
-                    errBox.innerText = "Access Denied: " + error.message;
-                    errBox.style.display = 'block';
-                });
+            // (Login logic will go here in Step 3)
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'flex';
+            initMap();
         }
 
-        // 3. MAP LOGIC
         function initMap() {
             map = L.map('map').setView([12.9716, 77.5946], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            // Use premium CartoDB Dark Matter tiles
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
         }
 
-        function fetchRideHistory() {
-            firebase.database().ref('/tracker/history').once('value', (snapshot) => {
-                const selector = document.getElementById('ride-selector');
-                snapshot.forEach((child) => {
-                    const rideId = child.key; 
-                    const opt = document.createElement('option');
-                    opt.value = rideId;
-                    opt.innerText = "🗓️ Ride: " + rideId.replace('_', ' at ').replace(/-/g, '/');
-                    selector.appendChild(opt);
-                });
-            });
-        }
-
-        function switchMode() {
-            const mode = document.getElementById('ride-selector').value;
-            
-            if (liveListener) firebase.database().ref('/tracker/live').off('value', liveListener);
-            if (marker) map.removeLayer(marker);
-            if (routeLine) map.removeLayer(routeLine);
-
-            if (mode === 'live') {
-                startLiveTracking();
-            } else {
-                loadPastRoute(mode);
-            }
-        }
-
-        function startLiveTracking() {
-            const bikeIcon = L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-                iconSize: [25, 41], iconAnchor: [12, 41]
-            });
-            marker = L.marker([12.9716, 77.5946], {icon: bikeIcon}).addTo(map);
-
-            liveListener = firebase.database().ref('/tracker/live').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data && data.lat && data.lng) {
-                    const newPos = new L.LatLng(data.lat, data.lng);
-                    marker.setLatLng(newPos);
-                    map.setView(newPos, 16);
-                }
-            });
-        }
-
-        function loadPastRoute(rideId) {
-            firebase.database().ref('/tracker/history/' + rideId).once('value', (snapshot) => {
-                const data = snapshot.val();
-                if (!data) return;
-
-                let coordinates = [];
-                for (let key in data) {
-                    if (data[key].lat && data[key].lng) {
-                        coordinates.push([data[key].lat, data[key].lng]);
-                    }
-                }
-
-                if (coordinates.length > 0) {
-                    routeLine = L.polyline(coordinates, {color: '#0056b3', weight: 5, opacity: 0.8}).addTo(map);
-                    map.fitBounds(routeLine.getBounds());
-                    
-                    const endIcon = L.icon({
-                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-                        iconSize: [25, 41], iconAnchor: [12, 41]
-                    });
-                    marker = L.marker(coordinates[coordinates.length - 1], {icon: endIcon}).addTo(map);
-                }
-            });
-        }
+        // --- 3. ADVANCED LOGIC PLACEHOLDERS ---
+        function switchMode() { console.log("Mode switched"); }
+        function playAnimatedRoute() { console.log("Animating route..."); }
     </script>
 </body>
 </html>
