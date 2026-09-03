@@ -16,7 +16,7 @@
     <style>
         /* BASE & DARK THEME */
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #ffffff; overflow: hidden; }
-        
+        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
         /* LOGIN SCREEN */
         #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0a0a0a; z-index: 9999; position: absolute; width: 100%; }
         .login-box { background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); width: 320px; text-align: center; border: 1px solid #333; }
@@ -116,7 +116,6 @@
 
     <script>
         // --- 1. CONFIGURATION ---
-        // (Replace these with your exact split keys from earlier)
         const keyPartA = "AIzaSyB8IdMO";
         const keyPartB = "qZlzZrJghi0y";
         const keyPartC = "kiZBrHEI2SNnTsU";
@@ -129,29 +128,176 @@
         };
         firebase.initializeApp(firebaseConfig);
 
-        let map;
+        let map, liveMarker, routeLine, animationMarker;
+        let lastPingTime = 0;
+        let currentRouteCoords = [];
 
-        // --- 2. INITIALIZATION ---
+        // --- 2. AUTHENTICATION & INIT ---
         function adminLogin() {
-            // (Login logic will go here in Step 3)
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'flex';
-            initMap();
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            
+            firebase.auth().signInWithEmailAndPassword(email, pass)
+                .then(() => {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'flex';
+                    initMap();
+                })
+                .catch((error) => {
+                    const errBox = document.getElementById('error-msg');
+                    errBox.innerText = "Access Denied: " + error.message;
+                    errBox.style.display = 'block';
+                });
         }
 
         function initMap() {
             map = L.map('map').setView([12.9716, 77.5946], 13);
-            // Use premium CartoDB Dark Matter tiles
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap &copy; CARTO',
-                subdomains: 'abcd',
-                maxZoom: 20
-            }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            
+            fetchRideHistory();
+            startHeartbeatMonitor();
+            switchMode(); // Load default view
         }
 
-        // --- 3. ADVANCED LOGIC PLACEHOLDERS ---
-        function switchMode() { console.log("Mode switched"); }
-        function playAnimatedRoute() { console.log("Animating route..."); }
+        // --- 3. THE HEARTBEAT MONITOR ---
+        function startHeartbeatMonitor() {
+            // Listen to the Live Node
+            firebase.database().ref('/tracker/live').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.lat && data.lng) {
+                    lastPingTime = Date.now();
+                    updateStatusUI(true);
+
+                    // Update live marker if we are in live mode
+                    if (document.getElementById('ride-selector').value === 'live') {
+                        const newPos = new L.LatLng(data.lat, data.lng);
+                        if (!liveMarker) {
+                            const bikeIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41]});
+                            liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
+                        } else {
+                            liveMarker.setLatLng(newPos);
+                        }
+                        map.setView(newPos, 16);
+                    }
+                }
+            });
+
+            // Check every 5 seconds if the ESP32 died
+            setInterval(() => {
+                if (Date.now() - lastPingTime > 15000) { // 15 seconds without data = offline
+                    updateStatusUI(false);
+                }
+            }, 5000);
+        }
+
+        function updateStatusUI(isLive) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            if (isLive) {
+                dot.className = 'dot live';
+                text.innerText = 'LIVE TRACKING';
+                text.style.color = '#28a745';
+            } else {
+                dot.className = 'dot offline';
+                text.innerText = 'OFFLINE';
+                text.style.color = '#dc3545';
+            }
+        }
+
+        // --- 4. HISTORY & ANALYTICS ---
+        function fetchRideHistory() {
+            firebase.database().ref('/tracker/history').once('value', (snapshot) => {
+                const selector = document.getElementById('ride-selector');
+                snapshot.forEach((child) => {
+                    const opt = document.createElement('option');
+                    opt.value = child.key;
+                    opt.innerText = "🗓️ " + child.key.replace('ride_', '').replace('_', ' | Time: ');
+                    selector.appendChild(opt);
+                });
+            });
+        }
+
+        function switchMode() {
+            const mode = document.getElementById('ride-selector').value;
+            
+            // Clear Map
+            if (liveMarker) { map.removeLayer(liveMarker); liveMarker = null; }
+            if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+            if (animationMarker) { map.removeLayer(animationMarker); animationMarker = null; }
+            
+            document.getElementById('play-btn').style.display = (mode === 'live') ? 'none' : 'block';
+
+            if (mode !== 'live') {
+                loadPastRoute(mode);
+            } else {
+                document.getElementById('stat-dist').innerText = "-- km";
+                document.getElementById('stat-points').innerText = "LIVE";
+            }
+        }
+
+        function loadPastRoute(rideId) {
+            firebase.database().ref('/tracker/history/' + rideId).once('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                currentRouteCoords = [];
+                for (let key in data) {
+                    if (data[key].lat && data[key].lng) {
+                        currentRouteCoords.push([data[key].lat, data[key].lng]);
+                    }
+                }
+
+                if (currentRouteCoords.length > 0) {
+                    routeLine = L.polyline(currentRouteCoords, {color: '#007bff', weight: 4, opacity: 0.8}).addTo(map);
+                    map.fitBounds(routeLine.getBounds());
+                    
+                    // Calculate Analytics
+                    let totalKm = 0;
+                    for (let i = 0; i < currentRouteCoords.length - 1; i++) {
+                        totalKm += calculateHaversine(currentRouteCoords[i][0], currentRouteCoords[i][1], currentRouteCoords[i+1][0], currentRouteCoords[i+1][1]);
+                    }
+                    
+                    document.getElementById('stat-dist').innerText = totalKm.toFixed(2) + " km";
+                    document.getElementById('stat-points').innerText = currentRouteCoords.length;
+                }
+            });
+        }
+
+        // --- 5. MATH & ANIMATION ---
+        // Haversine Formula for Distance Calculation
+        function calculateHaversine(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth Radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
+        function playAnimatedRoute() {
+            if (currentRouteCoords.length === 0) return;
+            
+            const btn = document.getElementById('play-btn');
+            btn.disabled = true;
+            btn.innerText = "PLAYING...";
+
+            if (animationMarker) map.removeLayer(animationMarker);
+            
+            const ghostIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png', iconSize: [25, 41], iconAnchor: [12, 41] });
+            animationMarker = L.marker(currentRouteCoords[0], {icon: ghostIcon}).addTo(map);
+
+            let i = 0;
+            function moveMarker() {
+                if (i < currentRouteCoords.length) {
+                    animationMarker.setLatLng(currentRouteCoords[i]);
+                    i++;
+                    setTimeout(moveMarker, 200); // Speed of animation
+                } else {
+                    btn.disabled = false;
+                    btn.innerText = "▶ PLAY ROUTE";
+                }
+            }
+            moveMarker();
+        }
     </script>
 </body>
 </html>
