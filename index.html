@@ -1,477 +1,107 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <title>Delivery Fleet Tracker</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fleetline | Secure Fleet Portal</title>
     
-    <!-- Leaflet.js Mapping -->
+    <!-- Leaflet CSS for Maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- Firebase Auth & Database SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-
+    
     <style>
-        :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #0ea5e9; --success: #10b981; --danger: #ef4444; --border: #334155; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 16px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
-
-        /* --- MODALS --- */
-        #roleModal, #adminLoginModal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        #adminLoginModal { display: none; }
-        
-        .login-card { background: var(--panel); border: 1px solid var(--border); padding: 30px; border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        .login-card h2 { color: var(--accent); margin-top: 0; margin-bottom: 8px; }
-        .login-card p { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
-
-        .btn-main { width: 100%; padding: 14px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        .btn-main.rider { background: #0284c7; color: white; border: none; }
-        .btn-main.admin { background: #334155; color: white; }
-        .btn-main.danger { background: var(--danger); color: white; border: none; display: none; }
-        
-        .input-field { width: 100%; box-sizing: border-box; padding: 12px; margin-bottom: 15px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: white; font-family: inherit;}
-        #loginError { color: var(--danger); font-size: 12px; margin-bottom: 15px; display: none; }
-
-        /* --- HEADER --- */
-        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-        .status-pill { padding: 4px 10px; border-radius: 12px; font-size: 12px; background: var(--panel); border: 1px solid var(--border); margin-left: 6px; }
-        
-        /* --- LAYOUT VIEWS --- */
-        #riderView { display: none; flex-direction: column; align-items: center; justify-content: center; flex-grow: 1; }
-        #adminView { display: none; grid-template-columns: 320px 1fr; gap: 16px; flex-grow: 1; min-height: 0; }
-        @media (max-width: 800px) { #adminView { grid-template-columns: 1fr; } #map { height: 350px !important; } }
-        
-        /* --- PANELS --- */
-        .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px;}
-        .panel h3 { margin: 0 0 10px 0; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-        
-        #alarmBtn { width: 100%; padding: 14px; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; background: var(--danger); color: white; height: 55px; }
-        #alarmBtn.ringing { animation: pulse 1.2s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
-        
-        #map { width: 100%; height: 100%; border-radius: 8px; border: 1px solid var(--border); }
-        #logArea { height: 130px; overflow-y: auto; background: #090d16; border: 1px inset var(--border); padding: 8px; font-family: monospace; font-size: 11px; color: var(--success); border-radius: 4px; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        #ui-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        h2 { margin: 0 0 10px 0; font-size: 18px; }
+        .status { color: #007BFF; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <!-- 1. INITIAL ROLE SELECTION MODAL -->
-    <div id="roleModal">
-        <div class="login-card">
-            <h2>FLEETLINE PORTAL</h2>
-            <p>Select your access role to continue:</p>
-            <button class="btn-main rider" onclick="selectRole('rider')">🚴 Rider Gateway</button>
-            <button class="btn-main admin" onclick="showAdminLogin()">🛡️ Admin Login</button>
-        </div>
+    <div id="ui-panel">
+        <h2>Live Tracker Admin</h2>
+        <p>Current Trip: <span id="trip-id" class="status">Waiting for data...</span></p>
     </div>
 
-    <!-- 2. SECURE ADMIN LOGIN MODAL -->
-    <div id="adminLoginModal">
-        <div class="login-card">
-            <h2>ADMIN AUTHENTICATION</h2>
-            <p>Enter your credentials to access telemetry.</p>
-            <input type="email" id="emailInput" class="input-field" placeholder="Admin Email">
-            <input type="password" id="passwordInput" class="input-field" placeholder="Password">
-            <div id="loginError">Invalid credentials.</div>
-            <button class="btn-main rider" onclick="attemptAdminLogin()">Secure Login</button>
-            <button class="btn-main admin" style="background: transparent; border: none; margin-top: 5px;" onclick="cancelLogin()">Back</button>
-        </div>
-    </div>
+    <!-- The Map Container -->
+    <div id="map"></div>
 
-    <!-- 3. TOP NAVIGATION HEADER -->
-    <div class="header">
-        <div>
-            <h1>FLEETLINE CLOUD</h1>
-            <div style="font-size: 11px; color: var(--muted);" id="subHeader">FLEET PORTAL</div>
-        </div>
-        <div>
-            <span id="roleBadge" class="status-pill">● Not Selected</span>
-            <button style="background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="location.reload()">Logout</button>
-        </div>
-    </div>
-
-    <!-- 4. RIDER GATEWAY INTERFACE -->
-    <div id="riderView">
-        <div class="login-card" style="width: 100%; max-width: 400px;">
-            <h2 style="font-size: 20px;">Rider Gateway</h2>
-            <p>Connect Bluetooth tracker to transmit GPS.</p>
-            
-            <div style="background: #090d16; padding: 16px; border-radius: 8px; text-align: left; margin-bottom: 15px;">
-                <div style="margin-bottom: 8px; font-size: 13px;">
-                    <span style="color: var(--muted);">Bluetooth:</span> 
-                    <strong id="riderBleStatus" style="color: var(--danger); float: right;">Disconnected</strong>
-                </div>
-                <div style="font-size: 13px;">
-                    <span style="color: var(--muted);">Cloud:</span> 
-                    <strong id="riderSyncStatus" style="color: var(--muted); float: right;">Waiting...</strong>
-                </div>
-            </div>
-
-            <button id="riderConnectBtn" class="btn-main rider">⚡ Connect to Tracker</button>
-            <button id="riderDisconnectBtn" class="btn-main danger">🛑 End Ride & Disconnect</button>
-        </div>
-    </div>
-
-    <!-- 5. ADMIN DASHBOARD INTERFACE -->
-    <div id="adminView">
-        <div class="sidebar">
-            <!-- Remote Alarm -->
-            <div class="panel">
-                <h3>Global Remote Alarm</h3>
-                <button id="alarmBtn">🔔 TRIGGER BIKE ALARM</button>
-            </div>
-
-            <!-- Ride History Manager -->
-            <div class="panel">
-                <h3>Ride History</h3>
-                <select id="rideSelect" class="input-field" style="margin-bottom: 8px; font-size: 13px; padding: 8px;">
-                    <option value="live">🔴 Live Tracking Mode</option>
-                </select>
-                <button class="btn-main admin" style="padding: 10px; font-size: 13px; margin-bottom: 0;" onclick="loadSelectedRide()">Load Selected Ride</button>
-            </div>
-
-            <!-- Live Logs -->
-            <div class="panel" style="flex-grow: 1;">
-                <h3>Telemetry Feed</h3>
-                <div id="logArea"><div>Secure session established...</div></div>
-            </div>
-        </div>
-        
-        <div id="map"></div>
-    </div>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Firebase Web SDK (v8 Compat for simple HTML integration) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // =========================================================================
-        // IMPORTANT: REPLACE THESE WITH YOUR SPECIFIC FIREBASE CONFIG KEYS
-        // =========================================================================
+        // 1. Initialize the Map (Centered on Bengaluru temporarily)
+        const map = L.map('map').setView([12.914, 77.610], 15);
+
+        // Add free OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Map Objects
+        let bikeMarker = null;
+        let routePolyline = L.polyline([], {color: 'blue', weight: 5}).addTo(map);
+
+        // 2. Initialize Firebase (UPDATE THIS URL TO YOURS)
         const firebaseConfig = {
-         apiKey: "AIzaSyB8IdMOqZlzZrJghi0ykiZBrHEI2SNnTsU",
-         authDomain: "delivery-tracker-e1fef.firebaseapp.com",
-         databaseURL: "https://delivery-tracker-e1fef-default-rtdb.firebaseio.com",
-         projectId: "delivery-tracker-e1fef",
-         storageBucket: "delivery-tracker-e1fef.firebasestorage.app",
-         messagingSenderId: "481064109063",
-         appId: "1:481064109063:web:08c552023c98b7fe3996a2",
-         measurementId: "G-72GZV2027B"
+            databaseURL: "https://delivery-tracker-e1fef-default-rtdb.firebaseio.com"
         };
-        const FIREBASE_DB_URL = firebaseConfig.databaseURL;
-        
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        let adminToken = null;
+        const db = firebase.database();
 
-        // BLE Settings
-        const SERVICE_UUID = "4fafc201-1bf5-4fd5-9365-1c7356d81b31";
-        const GPS_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-        const BUZZER_CHAR_UUID = "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d";
-
-        // State Variables
-        let activeRole = null;
-        let isAlarmActive = false;
-        let bleDevice, buzzerChar;
-        let map, bikeMarker, pathTrail;
-        let currentRideSessionId = null;
-        let adminViewMode = 'live'; 
-        let liveSyncInterval;
-
-        const logArea = document.getElementById('logArea');
-        const alarmBtn = document.getElementById('alarmBtn');
-        const rideSelect = document.getElementById('rideSelect');
-
-        function addLog(msg) {
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            logArea.innerHTML = `<div><span style="color:var(--muted)">[${time}]</span> ${msg}</div>` + logArea.innerHTML;
-        }
-
-        // =========================================================
-        // SCREEN WAKE LOCK API (Prevents phone from sleeping during ride)
-        // =========================================================
-        let wakeLock = null;
-
-        async function enableWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Screen Wake Lock active.');
-                }
-            } catch (err) {
-                console.log('Wake Lock failed: ' + err.message);
-            }
-        }
-
-        function disableWakeLock() {
-            if (wakeLock !== null) {
-                wakeLock.release().then(() => { 
-                    wakeLock = null; 
-                    console.log('Screen Wake Lock released.');
-                });
-            }
-        }
-
-        // =========================================================
-        // ROLE SELECTION & AUTHENTICATION
-        // =========================================================
-        function selectRole(role) {
-            if (role === 'rider') {
-                document.getElementById('roleModal').style.display = 'none';
-                document.getElementById('roleBadge').innerText = "● Role: Rider";
-                document.getElementById('subHeader').innerText = "RIDER GATEWAY MODE";
-                document.getElementById('riderView').style.display = 'flex';
-                activeRole = 'rider';
-            }
-        }
-
-        function showAdminLogin() { 
-            document.getElementById('roleModal').style.display = 'none'; 
-            document.getElementById('adminLoginModal').style.display = 'flex'; 
-        }
-        
-        function cancelLogin() { 
-            document.getElementById('adminLoginModal').style.display = 'none'; 
-            document.getElementById('roleModal').style.display = 'flex'; 
-        }
-
-        async function attemptAdminLogin() {
-            try {
-                const userCredential = await auth.signInWithEmailAndPassword(
-                    document.getElementById('emailInput').value, 
-                    document.getElementById('passwordInput').value
-                );
-                adminToken = await userCredential.user.getIdToken(); 
-                
-                document.getElementById('adminLoginModal').style.display = 'none';
-                document.getElementById('roleBadge').style.color = "var(--success)";
-                document.getElementById('roleBadge').innerText = "● Admin Authenticated";
-                document.getElementById('subHeader').innerText = "ADMIN LIVE DASHBOARD";
-                document.getElementById('adminView').style.display = 'grid';
-                activeRole = 'admin';
-                
-                // Initialize Map
-                map = L.map('map').setView([20.5937, 78.9629], 5);
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-                pathTrail = L.polyline([], { color: '#0ea5e9', weight: 4 }).addTo(map);
-                setTimeout(() => { map.invalidateSize(); }, 300);
-
-                // Start Data Fetching
-                fetchRideHistoryList();
-                liveSyncInterval = setInterval(fetchSecureCloudData, 2000);
-            } catch (error) {
-                document.getElementById('loginError').style.display = 'block';
-            }
-        }
-
-        // =========================================================
-        // ADMIN: DATA POLLING & RIDE HISTORY
-        // =========================================================
-        
-        // Populate the dropdown with past rides
-        async function fetchRideHistoryList() {
-            try {
-                const res = await fetch(`${FIREBASE_DB_URL}/rides.json?auth=${adminToken}`);
-                const data = await res.json();
-                if (data) {
-                    rideSelect.innerHTML = '<option value="live">🔴 Live Tracking Mode</option>';
-                    // Sort by newest first
-                    const rides = Object.keys(data).sort().reverse();
-                    rides.forEach(rideId => {
-                        const ride = data[rideId];
-                        const dateObj = new Date(parseInt(rideId.split('_')[1]));
-                        const label = `${dateObj.toLocaleDateString()} - ${dateObj.toLocaleTimeString()} ${ride.status === 'active' ? '(Active)' : ''}`;
-                        rideSelect.innerHTML += `<option value="${rideId}">${label}</option>`;
-                    });
-                }
-            } catch (e) { console.error("Could not fetch history list"); }
-        }
-
-        // Load specific ride path onto the map
-        async function loadSelectedRide() {
-            const selectedId = rideSelect.value;
+        // 3. Listen to the database for the most recent trip
+        // limitToLast(1) ensures we only track the currently active ride
+        db.ref('tracker/rides').limitToLast(1).on('value', (snapshot) => {
+            const data = snapshot.val();
             
-            if (selectedId === 'live') {
-                adminViewMode = 'live';
-                addLog("Switched to Live Tracking Mode");
-                pathTrail.setLatLngs([]); // Clear historical path
-                if (!liveSyncInterval) liveSyncInterval = setInterval(fetchSecureCloudData, 2000);
-                return;
-            }
-
-            // Switch to History Mode
-            adminViewMode = 'history';
-            clearInterval(liveSyncInterval); 
-            liveSyncInterval = null;
-            addLog(`Loading history for ride: ${selectedId}...`);
-
-            try {
-                const res = await fetch(`${FIREBASE_DB_URL}/rides/${selectedId}/path.json?auth=${adminToken}`);
-                const pathData = await res.json();
+            if (data) {
+                // Get the ID of the current trip (e.g., "trip_170000000")
+                const tripId = Object.keys(data)[0];
+                const tripData = data[tripId];
                 
-                if (pathData) {
-                    const coords = Object.values(pathData).map(p => [p.lat, p.lng]);
-                    pathTrail.setLatLngs(coords); // Draw full route
-                    
-                    if (coords.length > 0) {
-                        map.fitBounds(pathTrail.getBounds(), { padding: [50, 50] });
-                        if (!bikeMarker) { bikeMarker = L.marker(coords[coords.length-1]).addTo(map); }
-                        else { bikeMarker.setLatLng(coords[coords.length-1]); }
+                document.getElementById('trip-id').innerText = tripId;
+
+                // Extract all coordinates from this trip into an array
+                const coordinates = [];
+                let lastLat = 0;
+                let lastLng = 0;
+
+                for (let pushId in tripData) {
+                    const point = tripData[pushId];
+                    coordinates.push([point.lat, point.lng]);
+                    lastLat = point.lat;
+                    lastLng = point.lng;
+                }
+
+                if (coordinates.length > 0) {
+                    // Update the blue route line on the map
+                    routePolyline.setLatLngs(coordinates);
+
+                    // Update or create the live marker
+                    if (bikeMarker === null) {
+                        bikeMarker = L.marker([lastLat, lastLng]).addTo(map);
+                    } else {
+                        bikeMarker.setLatLng([lastLat, lastLng]);
                     }
-                    addLog("Historical route loaded successfully.");
-                } else {
-                    addLog("No GPS data found for this ride.");
-                }
-            } catch (e) { addLog("Error loading ride data."); }
-        }
 
-        // Live Mode Tracker
-        async function fetchSecureCloudData() {
-            if (activeRole !== 'admin' || !adminToken || adminViewMode !== 'live') return;
-            try {
-                const res = await fetch(`${FIREBASE_DB_URL}/tracker.json?auth=${adminToken}`);
-                const data = await res.json();
-                
-                // Update Map
-                if (data && data.live && data.live.lat && data.live.lng) {
-                    const lat = parseFloat(data.live.lat);
-                    const lng = parseFloat(data.live.lng);
-                    if (!bikeMarker) { bikeMarker = L.marker([lat, lng]).addTo(map); map.setView([lat, lng], 17); } 
-                    else { bikeMarker.setLatLng([lat, lng]); }
-                    pathTrail.addLatLng([lat, lng]);
-                }
-
-                // Update Alarm Button State
-                if (data && data.alarm !== undefined) {
-                    isAlarmActive = data.alarm;
-                    if (isAlarmActive) { alarmBtn.classList.add('ringing'); alarmBtn.innerHTML = "🔕 SILENCE ALARM"; } 
-                    else { alarmBtn.classList.remove('ringing'); alarmBtn.innerHTML = "🔔 TRIGGER BIKE ALARM"; }
-                }
-            } catch (err) {}
-        }
-
-        // Trigger Global Alarm
-        alarmBtn.addEventListener('click', async () => {
-            if (!adminToken) return;
-            isAlarmActive = !isAlarmActive;
-            addLog(`Alarm toggled by admin.`);
-            await fetch(`${FIREBASE_DB_URL}/tracker/alarm.json?auth=${adminToken}`, { 
-                method: 'PUT', 
-                body: JSON.stringify(isAlarmActive) 
-            });
-        });
-
-        // =========================================================
-        // RIDER: BLUETOOTH GATEWAY & TELEMETRY UPLOAD
-        // =========================================================
-        
-        document.getElementById('riderConnectBtn').addEventListener('click', async () => {
-            try {
-                document.getElementById('riderSyncStatus').innerText = "Connecting Bluetooth...";
-                
-                bleDevice = await navigator.bluetooth.requestDevice({ 
-                    filters: [{ name: 'Delivery_Bike_Tracker' }], 
-                    optionalServices: [SERVICE_UUID] 
-                });
-                
-                bleDevice.addEventListener('gattserverdisconnected', handleRiderDisconnect);
-
-                const server = await bleDevice.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                
-                const gpsChar = await service.getCharacteristic(GPS_CHAR_UUID);
-                await gpsChar.startNotifications();
-                gpsChar.addEventListener('characteristicvaluechanged', handleBleGps);
-                
-                buzzerChar = await service.getCharacteristic(BUZZER_CHAR_UUID);
-
-                // Poll alarm status for the physical buzzer
-                setInterval(checkRiderAlarmSync, 2000);
-
-                // --- START NEW RIDE SESSION IN DATABASE ---
-                currentRideSessionId = "ride_" + Date.now();
-                await fetch(`${FIREBASE_DB_URL}/rides/${currentRideSessionId}.json`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ startTime: new Date().toISOString(), status: 'active' })
-                });
-
-                // ENABLE WAKE LOCK SO SCREEN STAYS ON
-                await enableWakeLock();
-
-                // Update UI
-                document.getElementById('riderBleStatus').style.color = "var(--success)";
-                document.getElementById('riderBleStatus').innerText = "Connected";
-                document.getElementById('riderConnectBtn').style.display = "none";
-                document.getElementById('riderDisconnectBtn').style.display = "block";
-
-            } catch (error) {
-                document.getElementById('riderSyncStatus').style.color = "var(--danger)";
-                document.getElementById('riderSyncStatus').innerText = "Bluetooth Error/Cancelled.";
-            }
-        });
-
-        // Disconnect Routine
-        document.getElementById('riderDisconnectBtn').addEventListener('click', () => {
-            if (bleDevice && bleDevice.gatt.connected) { bleDevice.gatt.disconnect(); }
-        });
-
-        async function handleRiderDisconnect() {
-            document.getElementById('riderBleStatus').style.color = "var(--danger)";
-            document.getElementById('riderBleStatus').innerText = "Disconnected";
-            document.getElementById('riderConnectBtn').style.display = "block";
-            document.getElementById('riderDisconnectBtn').style.display = "none";
-            document.getElementById('riderSyncStatus').style.color = "var(--muted)";
-            document.getElementById('riderSyncStatus').innerText = "Ride Ended.";
-
-            // --- CLOSE THE RIDE SESSION IN DATABASE ---
-            if (currentRideSessionId) {
-                await fetch(`${FIREBASE_DB_URL}/rides/${currentRideSessionId}.json`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ endTime: new Date().toISOString(), status: 'completed' })
-                });
-                currentRideSessionId = null;
-            }
-            
-            // DISABLE WAKE LOCK TO SAVE BATTERY
-            disableWakeLock();
-        }
-
-        // Handle GPS incoming from ESP32
-        async function handleBleGps(event) {
-            const raw = new TextDecoder().decode(event.target.value);
-            const [lat, lng] = raw.split(',');
-            
-            if (lat && lng) {
-                const now = new Date().toISOString();
-                document.getElementById('riderSyncStatus').style.color = "var(--success)";
-                document.getElementById('riderSyncStatus').innerText = `Syncing GPS...`;
-                
-                // 1. Overwrite the "Live" tracker coordinates
-                await fetch(`${FIREBASE_DB_URL}/tracker/live.json`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ lat: parseFloat(lat), lng: parseFloat(lng), updatedAt: now })
-                });
-
-                // 2. Add a breadcrumb point to the historical Ride Session
-                if (currentRideSessionId) {
-                    await fetch(`${FIREBASE_DB_URL}/rides/${currentRideSessionId}/path.json`, {
-                        method: 'POST',
-                        body: JSON.stringify({ lat: parseFloat(lat), lng: parseFloat(lng), time: now })
-                    });
+                    // Smoothly pan the map to follow the bike
+                    map.panTo([lastLat, lastLng]);
                 }
             }
-        }
-
-        // Bridge: Pull alarm state from cloud -> push to ESP32 buzzer
-        async function checkRiderAlarmSync() {
-            if (!buzzerChar) return;
-            try {
-                const res = await fetch(`${FIREBASE_DB_URL}/tracker/alarm.json`);
-                if(res.ok) {
-                    const alarmState = await res.json();
-                    const payload = alarmState ? "1" : "0";
-                    await buzzerChar.writeValue(new TextEncoder().encode(payload));
-                }
-            } catch (e) {}
-        }
+        });
     </script>
 </body>
 </html>
