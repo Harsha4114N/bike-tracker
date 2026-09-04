@@ -24,7 +24,7 @@
         
         #top-nav { background: #1a1a1a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .nav-controls { display: flex; align-items: center; gap: 20px; }
-        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 420px; cursor: pointer; }
+        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 440px; cursor: pointer; }
         
         .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; padding: 5px 15px; background: #2a2a2a; border-radius: 20px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
@@ -205,7 +205,6 @@
                     ridesList.push({ key: child.key, val: child.val() });
                 });
 
-                // Clear existing ride options while preserving live tracking default
                 selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
 
                 ridesList.forEach((item, idx) => {
@@ -233,8 +232,8 @@
                         const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         
                         if (startStr === endStr) {
-                            const exactTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                            labelText = `🛵 Ride #${rideNumber} | ${dateStr} @ ${exactTime} (${pointCount} pt)`;
+                            const startExact = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            labelText = `🛵 Ride #${rideNumber} | ${dateStr} @ ${startExact} (${pointCount} pts)`;
                         } else {
                             labelText = `🛵 Ride #${rideNumber} | ${dateStr} (${startStr} - ${endStr}) (${pointCount} pts)`;
                         }
@@ -244,11 +243,9 @@
                     opt.value = item.key;
                     opt.innerText = labelText;
                     
-                    // Insert newest rides at the top right under "LIVE TRACKING"
                     selector.insertBefore(opt, selector.children[1]);
                 });
 
-                // Preserve active selection
                 if (activeSelection && selector.querySelector(`option[value="${activeSelection}"]`)) {
                     selector.value = activeSelection;
                 }
