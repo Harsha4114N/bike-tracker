@@ -24,7 +24,7 @@
         
         #top-nav { background: #1a1a1a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .nav-controls { display: flex; align-items: center; gap: 20px; }
-        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 440px; cursor: pointer; }
+        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 460px; cursor: pointer; }
         
         .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; padding: 5px 15px; background: #2a2a2a; border-radius: 20px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
@@ -157,6 +157,16 @@
                     lastPingTime = Date.now();
                     updateStatusUI(true);
 
+                    // Archive point to history automatically
+                    if (data.ride) {
+                        const pointId = Date.now();
+                        firebase.database().ref(`/tracker/history/${data.ride}/${pointId}`).set({
+                            lat: Number(data.lat),
+                            lng: Number(data.lng),
+                            ts: data.lastSeen || Date.now()
+                        });
+                    }
+
                     if (document.getElementById('ride-selector').value === 'live') {
                         const newPos = new L.LatLng(Number(data.lat), Number(data.lng));
                         if (!liveMarker) {
@@ -175,10 +185,10 @@
             });
 
             setInterval(() => {
-                if (lastPingTime > 0 && (Date.now() - lastPingTime > 45000)) { 
+                if (lastPingTime > 0 && (Date.now() - lastPingTime > 30000)) { 
                     updateStatusUI(false);
                 }
-            }, 4000);
+            }, 3000);
         }
 
         function updateStatusUI(isLive) {
