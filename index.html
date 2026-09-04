@@ -24,7 +24,7 @@
         
         #top-nav { background: #1a1a1a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .nav-controls { display: flex; align-items: center; gap: 20px; }
-        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 280px; cursor: pointer; }
+        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 340px; cursor: pointer; }
         
         .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; padding: 5px 15px; background: #2a2a2a; border-radius: 20px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
@@ -148,7 +148,6 @@
                     const currentTime = Date.now();
                     const packetAge = currentTime - data.lastSeen;
 
-                    // Strictly check if the data point was sent within the last 60 seconds
                     if (packetAge < 60000) {
                         lastPingTime = currentTime;
                         updateStatusUI(true);
@@ -203,16 +202,44 @@
                 
                 selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
                 
-                let rides = [];
+                let rideKeys = [];
                 snapshot.forEach((child) => {
-                    rides.push(child.key);
+                    rideKeys.push(child.key);
                 });
                 
-                rides.reverse().forEach((rideKey) => {
+                let rideNumber = 1;
+                rideKeys.forEach((rideKey) => {
+                    const pointsObj = snapshot.child(rideKey).val();
+                    if (!pointsObj) return;
+
+                    const pointKeys = Object.keys(pointsObj);
+                    let timestamps = [];
+                    
+                    for (let pk in pointsObj) {
+                        if (pointsObj[pk].ts) {
+                            timestamps.push(pointsObj[pk].ts);
+                        }
+                    }
+
+                    let labelText = `🛵 Ride #${rideNumber}`;
+                    if (timestamps.length > 0) {
+                        timestamps.sort((a,b) => a - b);
+                        const start = new Date(timestamps[0]);
+                        const end = new Date(timestamps[timestamps.length - 1]);
+                        
+                        const dateStr = start.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+                        const startStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        
+                        labelText = `🛵 Ride #${rideNumber} | ${dateStr} (${startStr} - ${endStr})`;
+                    }
+
                     const opt = document.createElement('option');
                     opt.value = rideKey;
-                    opt.innerText = "🗓️ " + rideKey.replace('ride_', '').replace('_', ' | Time: ');
-                    selector.appendChild(opt);
+                    opt.innerText = labelText;
+                    
+                    selector.insertBefore(opt, selector.children[1]);
+                    rideNumber++;
                 });
 
                 selector.value = selectedVal;
