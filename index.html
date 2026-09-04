@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <title>Enterprise Fleet Command</title>
     
+    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
+    <!-- Firebase JS SDK (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -54,6 +56,7 @@
 </head>
 <body>
 
+    <!-- Authentication Screen -->
     <div id="login-screen">
         <div class="login-box">
             <h2 style="margin-top:0;">Command Center</h2>
@@ -65,6 +68,7 @@
         </div>
     </div>
 
+    <!-- Main Dashboard -->
     <div id="dashboard">
         <div id="top-nav">
             <h3 style="margin:0; color: #fff;">🛰️ Fleet Telemetry</h3>
@@ -76,7 +80,7 @@
                 <select id="ride-selector" onchange="switchMode()">
                     <option value="live">🔴 LIVE TRACKING</option>
                 </select>
-                <button onclick="firebase.auth().signOut().then(()=>location.reload())" style="padding: 8px 15px; background: transparent; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
+                <button onclick="logoutAdmin()" style="padding: 8px 15px; background: transparent; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
             </div>
         </div>
 
@@ -111,20 +115,30 @@
         };
         firebase.initializeApp(firebaseConfig);
 
-        let map, liveMarker, routeLine, animationMarker;
+        let map = null;
+        let liveMarker = null;
+        let routeLine = null;
+        let animationMarker = null;
         let lastPingTime = 0;
         let currentRouteCoords = [];
+
+        // --- AUTHENTICATION LISTENERS ---
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'flex';
+                if (!map) initMap();
+            } else {
+                document.getElementById('login-screen').style.display = 'flex';
+                document.getElementById('dashboard').style.display = 'none';
+            }
+        });
 
         function adminLogin() {
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
             
             firebase.auth().signInWithEmailAndPassword(email, pass)
-                .then(() => {
-                    document.getElementById('login-screen').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'flex';
-                    initMap();
-                })
                 .catch((error) => {
                     const errBox = document.getElementById('error-msg');
                     errBox.innerText = "Access Denied: " + error.message;
@@ -132,6 +146,11 @@
                 });
         }
 
+        function logoutAdmin() {
+            firebase.auth().signOut().then(() => location.reload());
+        }
+
+        // --- MAP INITIALIZATION ---
         function initMap() {
             map = L.map('map').setView([12.9716, 77.5946], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
@@ -141,10 +160,11 @@
             switchMode(); 
         }
 
+        // --- REALTIME LIVE TRACKING & WATCHDOG ---
         function startHeartbeatMonitor() {
             firebase.database().ref('/tracker/live').on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (data && data.lat && data.lng) {
+                if (data && typeof data.lat === 'number' && typeof data.lng === 'number') {
                     lastPingTime = Date.now();
                     updateStatusUI(true);
 
@@ -165,7 +185,7 @@
                 }
             });
 
-            // Heartbeat check: only trip offline if data has been received at least once
+            // Heartbeat: Check every 3s if more than 60s passed without a live update packet
             setInterval(() => {
                 if (lastPingTime > 0 && (Date.now() - lastPingTime > 60000)) { 
                     updateStatusUI(false);
@@ -187,6 +207,7 @@
             }
         }
 
+        // --- HISTORICAL RIDE POPULATION ---
         function listenToHistoryUpdates() {
             firebase.database().ref('/tracker/history').on('value', (snapshot) => {
                 const selector = document.getElementById('ride-selector');
@@ -197,15 +218,16 @@
                     ridesList.push({ key: child.key, val: child.val() });
                 });
 
+                // Clear dropdown options safely
                 selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
 
-                ridesList.forEach((item, idx) => {
-                    const rideNumber = idx + 1;
+                // Populate newest rides first
+                ridesList.reverse().forEach((item, idx) => {
+                    const rideNumber = ridesList.length - idx;
                     const pointsObj = item.val;
                     if (!pointsObj) return;
 
-                    const pointKeys = Object.keys(pointsObj);
-                    const pointCount = pointKeys.length;
+                    const pointCount = Object.keys(pointsObj).length;
                     
                     let timestamps = [];
                     for (let pk in pointsObj) {
@@ -235,7 +257,8 @@
                     opt.value = item.key;
                     opt.innerText = labelText;
                     
-                    selector.insertBefore(opt, selector.children[1]);
+                    // Safe append (no index bounds crashes)
+                    selector.appendChild(opt);
                 });
 
                 if (activeSelection && selector.querySelector(`option[value="${activeSelection}"]`)) {
@@ -244,6 +267,7 @@
             });
         }
 
+        // --- MODE & ROUTE SWITCHING ---
         function switchMode() {
             const mode = document.getElementById('ride-selector').value;
             
