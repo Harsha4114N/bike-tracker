@@ -169,11 +169,22 @@
         }
 
         function startHeartbeatMonitor() {
-            // Direct Live Node Listener
+            // Direct Live Node Listener with Stale Data Filter
             firebase.database().ref('/tracker/live').on('value', (snap) => {
                 const data = snap.val();
                 if (data && data.lat !== undefined && data.lng !== undefined) {
+                    const now = Date.now();
+                    const pingAge = data.lastSeen ? (now - data.lastSeen) : 0;
+
+                    // If the data in Firebase is older than 30 seconds, it's stale ghost data from a past session
+                    if (data.lastSeen && pingAge > 30000) {
+                        updateStatusUI(false);
+                        return;
+                    }
+
                     updateLiveMarker(data.lat, data.lng);
+                } else {
+                    updateStatusUI(false);
                 }
             });
 
