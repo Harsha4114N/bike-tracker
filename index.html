@@ -24,7 +24,7 @@
         
         #top-nav { background: #1a1a1a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .nav-controls { display: flex; align-items: center; gap: 20px; }
-        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 380px; cursor: pointer; }
+        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 420px; cursor: pointer; }
         
         .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; padding: 5px 15px; background: #2a2a2a; border-radius: 20px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
@@ -198,14 +198,19 @@
         function listenToHistoryUpdates() {
             firebase.database().ref('/tracker/history').on('value', (snapshot) => {
                 const selector = document.getElementById('ride-selector');
-                const selectedVal = selector.value;
+                const activeSelection = selector.value;
                 
-                selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
-                
-                let rideNumber = 1;
+                let ridesList = [];
                 snapshot.forEach((child) => {
-                    const rideKey = child.key;
-                    const pointsObj = child.val();
+                    ridesList.push({ key: child.key, val: child.val() });
+                });
+
+                // Clear existing ride options while preserving live tracking default
+                selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
+
+                ridesList.forEach((item, idx) => {
+                    const rideNumber = idx + 1;
+                    const pointsObj = item.val;
                     if (!pointsObj) return;
 
                     const pointKeys = Object.keys(pointsObj);
@@ -217,26 +222,36 @@
                     }
 
                     let labelText = `🛵 Ride #${rideNumber} (${pointCount} pts)`;
+
                     if (timestamps.length > 0) {
                         timestamps.sort((a,b) => a - b);
                         const start = new Date(timestamps[0]);
                         const end = new Date(timestamps[timestamps.length - 1]);
                         
+                        const dateStr = start.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
                         const startStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         
-                        labelText = `🛵 Ride #${rideNumber} | ${startStr} - ${endStr} (${pointCount} pts)`;
+                        if (startStr === endStr) {
+                            const exactTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            labelText = `🛵 Ride #${rideNumber} | ${dateStr} @ ${exactTime} (${pointCount} pt)`;
+                        } else {
+                            labelText = `🛵 Ride #${rideNumber} | ${dateStr} (${startStr} - ${endStr}) (${pointCount} pts)`;
+                        }
                     }
 
                     const opt = document.createElement('option');
-                    opt.value = rideKey;
+                    opt.value = item.key;
                     opt.innerText = labelText;
                     
+                    // Insert newest rides at the top right under "LIVE TRACKING"
                     selector.insertBefore(opt, selector.children[1]);
-                    rideNumber++;
                 });
 
-                selector.value = selectedVal;
+                // Preserve active selection
+                if (activeSelection && selector.querySelector(`option[value="${activeSelection}"]`)) {
+                    selector.value = activeSelection;
+                }
             });
         }
 
