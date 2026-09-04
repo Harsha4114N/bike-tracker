@@ -40,7 +40,6 @@
         #content-area { display: flex; flex-grow: 1; height: calc(100vh - 70px); }
         #map { flex-grow: 1; height: 100%; }
         
-        /* Dark Mode Map Filter */
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
 
         #sidebar { width: 300px; background: #1a1a1a; border-left: 1px solid #333; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
@@ -77,7 +76,7 @@
                 <select id="ride-selector" onchange="switchMode()">
                     <option value="live">🔴 LIVE TRACKING</option>
                 </select>
-                <button onclick="location.reload()" style="padding: 8px 15px; background: transparent; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
+                <button onclick="firebase.auth().signOut().then(()=>location.reload())" style="padding: 8px 15px; background: transparent; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
             </div>
         </div>
 
@@ -100,7 +99,6 @@
     </div>
 
     <script>
-        // 1. CONFIGURATION
         const keyPartA = "AIzaSyB8IdMO";
         const keyPartB = "qZlzZrJghi0y";
         const keyPartC = "kiZBrHEI2SNnTsU";
@@ -117,7 +115,6 @@
         let lastPingTime = 0;
         let currentRouteCoords = [];
 
-        // 2. AUTHENTICATION & INIT
         function adminLogin() {
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
@@ -139,12 +136,11 @@
             map = L.map('map').setView([12.9716, 77.5946], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
-            fetchRideHistory();
+            listenToHistoryUpdates();
             startHeartbeatMonitor();
             switchMode(); 
         }
 
-        // 3. HEARTBEAT MONITOR (Updated to 60 Seconds)
         function startHeartbeatMonitor() {
             firebase.database().ref('/tracker/live').on('value', (snapshot) => {
                 const data = snapshot.val();
@@ -155,7 +151,11 @@
                     if (document.getElementById('ride-selector').value === 'live') {
                         const newPos = new L.LatLng(data.lat, data.lng);
                         if (!liveMarker) {
-                            const bikeIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41]});
+                            const bikeIcon = L.icon({ 
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
+                                iconSize: [25, 41], 
+                                iconAnchor: [12, 41]
+                            });
                             liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
                         } else {
                             liveMarker.setLatLng(newPos);
@@ -165,7 +165,6 @@
                 }
             });
 
-            // Check every 5 seconds, but allow up to 60 seconds of silence before marking OFFLINE
             setInterval(() => {
                 if (Date.now() - lastPingTime > 60000) { 
                     updateStatusUI(false);
@@ -187,12 +186,11 @@
             }
         }
 
-        // 4. HISTORY & ANALYTICS (Fixed Dropdown Logic)
-        function fetchRideHistory() {
-            firebase.database().ref('/tracker/history').once('value', (snapshot) => {
+        function listenToHistoryUpdates() {
+            firebase.database().ref('/tracker/history').on('value', (snapshot) => {
                 const selector = document.getElementById('ride-selector');
+                const selectedVal = selector.value;
                 
-                // Keep ONLY the "Live Tracking" default option, wipe everything else to prevent duplicates
                 selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
                 
                 let rides = [];
@@ -200,14 +198,14 @@
                     rides.push(child.key);
                 });
                 
-                // Sort rides so the newest one is at the top of the list
                 rides.reverse().forEach((rideKey) => {
                     const opt = document.createElement('option');
                     opt.value = rideKey;
-                    // Format: "🗓️ 2026-09-04 | Time: 04-48"
                     opt.innerText = "🗓️ " + rideKey.replace('ride_', '').replace('_', ' | Time: ');
                     selector.appendChild(opt);
                 });
+
+                selector.value = selectedVal;
             });
         }
 
@@ -225,7 +223,6 @@
             } else {
                 document.getElementById('stat-dist').innerText = "-- km";
                 document.getElementById('stat-points').innerText = "LIVE";
-                // Snap back to live marker if we have data
                 if(lastPingTime > 0 && (Date.now() - lastPingTime < 60000)) updateStatusUI(true); 
             }
         }
@@ -257,7 +254,6 @@
             });
         }
 
-        // 5. MATH & ANIMATION
         function calculateHaversine(lat1, lon1, lat2, lon2) {
             const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -275,7 +271,11 @@
 
             if (animationMarker) map.removeLayer(animationMarker);
             
-            const ghostIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png', iconSize: [25, 41], iconAnchor: [12, 41] });
+            const ghostIcon = L.icon({ 
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png', 
+                iconSize: [25, 41], 
+                iconAnchor: [12, 41] 
+            });
             animationMarker = L.marker(currentRouteCoords[0], {icon: ghostIcon}).addTo(map);
 
             let i = 0;
