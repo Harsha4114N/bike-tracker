@@ -18,10 +18,8 @@
         .login-box { background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); width: 320px; text-align: center; border: 1px solid #333; }
         .input-field { width: 90%; padding: 12px; margin: 10px 0; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 6px; }
         .btn { background: #007bff; color: white; padding: 14px; width: 100%; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.3s; }
-        .btn:hover { background: #0056b3; }
-
-        #dashboard { display: none; height: 100vh; flex-direction: column; }
         
+        #dashboard { display: none; height: 100vh; flex-direction: column; }
         #top-nav { background: #1a1a1a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .nav-controls { display: flex; align-items: center; gap: 20px; }
         select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 480px; cursor: pointer; }
@@ -31,25 +29,16 @@
         .dot.live { background: #28a745; box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); animation: pulse 1.5s infinite; }
         .dot.offline { background: #dc3545; }
         
-        @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-        }
-
         #content-area { display: flex; flex-grow: 1; height: calc(100vh - 70px); }
         #map { flex-grow: 1; height: 100%; }
-        
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
 
-        #sidebar { width: 300px; background: #1a1a1a; border-left: 1px solid #333; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        #sidebar { width: 320px; background: #1a1a1a; border-left: 1px solid #333; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
         .stat-box { background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333; }
         .stat-value { font-size: 24px; font-weight: bold; color: #007bff; margin-top: 5px; }
         .stat-label { font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
         
-        #play-btn { background: #28a745; display: none; }
-        #play-btn:hover { background: #218838; }
-        #play-btn:disabled { background: #555; cursor: not-allowed; }
+        #debug-log { background: #000; color: #00ff00; font-family: monospace; font-size: 11px; padding: 10px; height: 200px; overflow-y: auto; border: 1px solid #444; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -57,7 +46,6 @@
     <div id="login-screen">
         <div class="login-box">
             <h2 style="margin-top:0;">Command Center</h2>
-            <p style="color: #aaa; font-size: 13px; margin-bottom: 25px;">Encrypted Access Only</p>
             <input type="email" id="email" class="input-field" placeholder="Admin Email">
             <input type="password" id="password" class="input-field" placeholder="Password">
             <button class="btn" onclick="adminLogin()">AUTHENTICATE</button>
@@ -76,7 +64,6 @@
                 <select id="ride-selector" onchange="switchMode()">
                     <option value="live">🔴 LIVE TRACKING</option>
                 </select>
-                <button onclick="firebase.auth().signOut().then(()=>location.reload())" style="padding: 8px 15px; background: transparent; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 5px; cursor: pointer; font-weight: bold;">Logout</button>
             </div>
         </div>
 
@@ -84,7 +71,9 @@
             <div id="map"></div>
             
             <div id="sidebar">
-                <h4 style="margin: 0; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 10px;">RIDE ANALYTICS</h4>
+                <h4 style="margin: 0; color: #ccc;">LIVE DIAGNOSTIC LOG</h4>
+                <div id="debug-log">System initialized. Awaiting Auth...<br></div>
+
                 <div class="stat-box">
                     <div class="stat-label">Total Distance</div>
                     <div id="stat-dist" class="stat-value">-- km</div>
@@ -93,7 +82,6 @@
                     <div class="stat-label">Data Points</div>
                     <div id="stat-points" class="stat-value">--</div>
                 </div>
-                <button id="play-btn" class="btn" onclick="playAnimatedRoute()">▶ PLAY ROUTE</button>
             </div>
         </div>
     </div>
@@ -113,17 +101,24 @@
 
         let map = null;
         let liveMarker = null;
-        let routeLine = null;
-        let animationMarker = null;
-        let lastPingTime = 0;
-        let currentRouteCoords = [];
+
+        function log(msg) {
+            const box = document.getElementById('debug-log');
+            if (box) {
+                box.innerHTML += `> ${msg}<br>`;
+                box.scrollTop = box.scrollHeight;
+            }
+            console.log(msg);
+        }
 
         firebase.auth().onAuthStateChanged((user) => {
             if (user) {
+                log("Auth Success: User logged in as " + user.email);
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('dashboard').style.display = 'flex';
                 if (!map) initMap();
             } else {
+                log("Auth Notice: No active session.");
                 document.getElementById('login-screen').style.display = 'flex';
                 document.getElementById('dashboard').style.display = 'none';
             }
@@ -135,29 +130,31 @@
             
             firebase.auth().signInWithEmailAndPassword(email, pass)
                 .catch((error) => {
-                    const errBox = document.getElementById('error-msg');
-                    errBox.innerText = "Access Denied: " + error.message;
-                    errBox.style.display = 'block';
+                    log("Auth Error: " + error.message);
+                    document.getElementById('error-msg').innerText = error.message;
+                    document.getElementById('error-msg').style.display = 'block';
                 });
         }
 
         function initMap() {
+            log("Initializing Map...");
             map = L.map('map').setView([12.9716, 77.5946], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
             startHeartbeatMonitor();
-            listenToHistoryUpdates();
-            switchMode(); 
         }
 
         function startHeartbeatMonitor() {
-            firebase.database().ref('/tracker/live').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data && data.lat !== undefined && data.lng !== undefined) {
-                    lastPingTime = Date.now();
-                    updateStatusUI(true);
+            log("Connecting to Firebase Live Stream...");
+            
+            firebase.database().ref('/tracker/live').on('value', 
+                (snapshot) => {
+                    const data = snapshot.val();
+                    log("Firebase Data Received: " + JSON.stringify(data));
+                    
+                    if (data && data.lat !== undefined && data.lng !== undefined) {
+                        updateStatusUI(true);
 
-                    if (document.getElementById('ride-selector').value === 'live') {
                         const newPos = new L.LatLng(Number(data.lat), Number(data.lng));
                         if (!liveMarker) {
                             const bikeIcon = L.icon({ 
@@ -170,16 +167,14 @@
                             liveMarker.setLatLng(newPos);
                         }
                         map.setView(newPos, 16);
+                    } else {
+                        log("Warning: Live payload is null or missing lat/lng.");
                     }
+                },
+                (error) => {
+                    log("FIREBASE ERROR: " + error.message);
                 }
-            });
-
-            // Mark offline if no pings arrive within 20 seconds
-            setInterval(() => {
-                if (lastPingTime > 0 && (Date.now() - lastPingTime > 20000)) { 
-                    updateStatusUI(false);
-                }
-            }, 3000);
+            );
         }
 
         function updateStatusUI(isLive) {
@@ -194,143 +189,6 @@
                 text.innerText = 'OFFLINE';
                 text.style.color = '#dc3545';
             }
-        }
-
-        function listenToHistoryUpdates() {
-            firebase.database().ref('/tracker/history').on('value', (snapshot) => {
-                const selector = document.getElementById('ride-selector');
-                const activeSelection = selector.value;
-                
-                let ridesList = [];
-                snapshot.forEach((child) => {
-                    ridesList.push({ key: child.key, val: child.val() });
-                });
-
-                let optionsHTML = '<option value="live">🔴 LIVE TRACKING</option>';
-
-                ridesList.reverse().forEach((item, idx) => {
-                    const rideNumber = ridesList.length - idx;
-                    const pointsObj = item.val;
-                    if (!pointsObj) return;
-
-                    const pointCount = Object.keys(pointsObj).length;
-                    let timestamps = [];
-                    
-                    for (let pk in pointsObj) {
-                        if (pointsObj[pk] && pointsObj[pk].ts) {
-                            timestamps.push(pointsObj[pk].ts);
-                        }
-                    }
-
-                    let labelText = `🛵 Ride #${rideNumber} (${pointCount} pts)`;
-
-                    if (timestamps.length > 0) {
-                        timestamps.sort((a,b) => a - b);
-                        const start = new Date(timestamps[0]);
-                        const end = new Date(timestamps[timestamps.length - 1]);
-                        
-                        const dateStr = start.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
-                        const startStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        
-                        if (startStr === endStr) {
-                            labelText = `🛵 Ride #${rideNumber} | ${dateStr} @ ${startStr} (${pointCount} pts)`;
-                        } else {
-                            labelText = `🛵 Ride #${rideNumber} | ${dateStr} (${startStr} - ${endStr}) (${pointCount} pts)`;
-                        }
-                    }
-
-                    optionsHTML += `<option value="${item.key}">${labelText}</option>`;
-                });
-
-                selector.innerHTML = optionsHTML;
-
-                if (activeSelection && selector.querySelector(`option[value="${activeSelection}"]`)) {
-                    selector.value = activeSelection;
-                }
-            });
-        }
-
-        function switchMode() {
-            const mode = document.getElementById('ride-selector').value;
-            
-            if (liveMarker) { map.removeLayer(liveMarker); liveMarker = null; }
-            if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-            if (animationMarker) { map.removeLayer(animationMarker); animationMarker = null; }
-            
-            document.getElementById('play-btn').style.display = (mode === 'live') ? 'none' : 'block';
-
-            if (mode !== 'live') {
-                loadPastRoute(mode);
-            } else {
-                document.getElementById('stat-dist').innerText = "-- km";
-                document.getElementById('stat-points').innerText = "LIVE";
-            }
-        }
-
-        function loadPastRoute(rideId) {
-            firebase.database().ref('/tracker/history/' + rideId).once('value', (snapshot) => {
-                const data = snapshot.val();
-                if (!data) return;
-
-                currentRouteCoords = [];
-                for (let key in data) {
-                    if (data[key].lat && data[key].lng) {
-                        currentRouteCoords.push([Number(data[key].lat), Number(data[key].lng)]);
-                    }
-                }
-
-                if (currentRouteCoords.length > 0) {
-                    routeLine = L.polyline(currentRouteCoords, {color: '#007bff', weight: 4, opacity: 0.8}).addTo(map);
-                    map.fitBounds(routeLine.getBounds());
-                    
-                    let totalKm = 0;
-                    for (let i = 0; i < currentRouteCoords.length - 1; i++) {
-                        totalKm += calculateHaversine(currentRouteCoords[i][0], currentRouteCoords[i][1], currentRouteCoords[i+1][0], currentRouteCoords[i+1][1]);
-                    }
-                    
-                    document.getElementById('stat-dist').innerText = totalKm.toFixed(2) + " km";
-                    document.getElementById('stat-points').innerText = currentRouteCoords.length;
-                }
-            });
-        }
-
-        function calculateHaversine(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-        }
-
-        function playAnimatedRoute() {
-            if (currentRouteCoords.length === 0) return;
-            
-            const btn = document.getElementById('play-btn');
-            btn.disabled = true;
-            btn.innerText = "PLAYING...";
-
-            if (animationMarker) map.removeLayer(animationMarker);
-            
-            const ghostIcon = L.icon({ 
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png', 
-                iconSize: [25, 41], 
-                iconAnchor: [12, 41] 
-            });
-            animationMarker = L.marker(currentRouteCoords[0], {icon: ghostIcon}).addTo(map);
-
-            let i = 0;
-            function moveMarker() {
-                if (i < currentRouteCoords.length) {
-                    animationMarker.setLatLng(currentRouteCoords[i]);
-                    i++;
-                    setTimeout(moveMarker, 200); 
-                } else {
-                    btn.disabled = false;
-                    btn.innerText = "▶ PLAY ROUTE";
-                }
-            }
-            moveMarker();
         }
     </script>
 </body>
