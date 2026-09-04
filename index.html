@@ -145,20 +145,20 @@
             map = L.map('map').setView([12.9716, 77.5946], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
-            listenToHistoryUpdates();
             startHeartbeatMonitor();
+            listenToHistoryUpdates();
             switchMode(); 
         }
 
         function startHeartbeatMonitor() {
             firebase.database().ref('/tracker/live').on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (data && typeof data.lat === 'number' && typeof data.lng === 'number') {
+                if (data && data.lat !== undefined && data.lng !== undefined) {
                     lastPingTime = Date.now();
                     updateStatusUI(true);
 
                     if (document.getElementById('ride-selector').value === 'live') {
-                        const newPos = new L.LatLng(data.lat, data.lng);
+                        const newPos = new L.LatLng(Number(data.lat), Number(data.lng));
                         if (!liveMarker) {
                             const bikeIcon = L.icon({ 
                                 iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
@@ -174,7 +174,6 @@
                 }
             });
 
-            // Mark offline if 45s pass without receiving data
             setInterval(() => {
                 if (lastPingTime > 0 && (Date.now() - lastPingTime > 45000)) { 
                     updateStatusUI(false);
@@ -206,10 +205,10 @@
                     ridesList.push({ key: child.key, val: child.val() });
                 });
 
-                selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
+                let optionsHTML = '<option value="live">🔴 LIVE TRACKING</option>';
 
-                ridesList.forEach((item, idx) => {
-                    const rideNumber = idx + 1;
+                ridesList.reverse().forEach((item, idx) => {
+                    const rideNumber = ridesList.length - idx;
                     const pointsObj = item.val;
                     if (!pointsObj) return;
 
@@ -217,7 +216,9 @@
                     let timestamps = [];
                     
                     for (let pk in pointsObj) {
-                        if (pointsObj[pk].ts) timestamps.push(pointsObj[pk].ts);
+                        if (pointsObj[pk] && pointsObj[pk].ts) {
+                            timestamps.push(pointsObj[pk].ts);
+                        }
                     }
 
                     let labelText = `🛵 Ride #${rideNumber} (${pointCount} pts)`;
@@ -238,12 +239,10 @@
                         }
                     }
 
-                    const opt = document.createElement('option');
-                    opt.value = item.key;
-                    opt.innerText = labelText;
-                    
-                    selector.insertBefore(opt, selector.children[1]);
+                    optionsHTML += `<option value="${item.key}">${labelText}</option>`;
                 });
+
+                selector.innerHTML = optionsHTML;
 
                 if (activeSelection && selector.querySelector(`option[value="${activeSelection}"]`)) {
                     selector.value = activeSelection;
@@ -276,7 +275,7 @@
                 currentRouteCoords = [];
                 for (let key in data) {
                     if (data[key].lat && data[key].lng) {
-                        currentRouteCoords.push([data[key].lat, data[key].lng]);
+                        currentRouteCoords.push([Number(data[key].lat), Number(data[key].lng)]);
                     }
                 }
 
