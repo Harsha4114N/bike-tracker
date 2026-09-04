@@ -165,9 +165,9 @@
                 }
             });
 
-            // Mark offline if 60s pass without receiving a new Firebase event
+            // Heartbeat check: only trip offline if data has been received at least once
             setInterval(() => {
-                if (Date.now() - lastPingTime > 60000) { 
+                if (lastPingTime > 0 && (Date.now() - lastPingTime > 60000)) { 
                     updateStatusUI(false);
                 }
             }, 3000);
