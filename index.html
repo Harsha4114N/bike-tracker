@@ -144,24 +144,34 @@
         function startHeartbeatMonitor() {
             firebase.database().ref('/tracker/live').on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (data && data.lat && data.lng) {
-                    lastPingTime = Date.now();
-                    updateStatusUI(true);
+                if (data && data.lat && data.lng && data.lastSeen) {
+                    const currentTime = Date.now();
+                    const packetAge = currentTime - data.lastSeen;
 
-                    if (document.getElementById('ride-selector').value === 'live') {
-                        const newPos = new L.LatLng(data.lat, data.lng);
-                        if (!liveMarker) {
-                            const bikeIcon = L.icon({ 
-                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
-                                iconSize: [25, 41], 
-                                iconAnchor: [12, 41]
-                            });
-                            liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
-                        } else {
-                            liveMarker.setLatLng(newPos);
+                    // Strictly check if the data point was sent within the last 60 seconds
+                    if (packetAge < 60000) {
+                        lastPingTime = currentTime;
+                        updateStatusUI(true);
+
+                        if (document.getElementById('ride-selector').value === 'live') {
+                            const newPos = new L.LatLng(data.lat, data.lng);
+                            if (!liveMarker) {
+                                const bikeIcon = L.icon({ 
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
+                                    iconSize: [25, 41], 
+                                    iconAnchor: [12, 41]
+                                });
+                                liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
+                            } else {
+                                liveMarker.setLatLng(newPos);
+                            }
+                            map.setView(newPos, 16);
                         }
-                        map.setView(newPos, 16);
+                    } else {
+                        updateStatusUI(false);
                     }
+                } else {
+                    updateStatusUI(false);
                 }
             });
 
@@ -223,7 +233,6 @@
             } else {
                 document.getElementById('stat-dist').innerText = "-- km";
                 document.getElementById('stat-points').innerText = "LIVE";
-                if(lastPingTime > 0 && (Date.now() - lastPingTime < 60000)) updateStatusUI(true); 
             }
         }
 
