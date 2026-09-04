@@ -4,35 +4,28 @@
     <meta charset="UTF-8">
     <title>Enterprise Fleet Command</title>
     
-    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
-        /* BASE & DARK THEME */
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #ffffff; overflow: hidden; }
-        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
-        /* LOGIN SCREEN */
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #121212; color: #ffffff; overflow: hidden; }
+        
         #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0a0a0a; z-index: 9999; position: absolute; width: 100%; }
         .login-box { background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); width: 320px; text-align: center; border: 1px solid #333; }
         .input-field { width: 90%; padding: 12px; margin: 10px 0; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 6px; }
         .btn { background: #007bff; color: white; padding: 14px; width: 100%; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.3s; }
         .btn:hover { background: #0056b3; }
 
-        /* DASHBOARD LAYOUT */
         #dashboard { display: none; height: 100vh; flex-direction: column; }
         
-        /* TOP NAVIGATION */
         #top-nav { background: #1a1a1a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .nav-controls { display: flex; align-items: center; gap: 20px; }
-        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 250px; cursor: pointer; }
+        select { padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 5px; font-weight: bold; width: 280px; cursor: pointer; }
         
-        /* HARDWARE STATUS HEARTBEAT */
         .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; padding: 5px 15px; background: #2a2a2a; border-radius: 20px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
         .dot.live { background: #28a745; box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); animation: pulse 1.5s infinite; }
@@ -44,13 +37,12 @@
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
         }
 
-        /* MAIN CONTENT AREA */
         #content-area { display: flex; flex-grow: 1; height: calc(100vh - 70px); }
-        
-        /* MAP */
         #map { flex-grow: 1; height: 100%; }
+        
+        /* Dark Mode Map Filter */
+        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
 
-        /* ANALYTICS SIDEBAR */
         #sidebar { width: 300px; background: #1a1a1a; border-left: 1px solid #333; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
         .stat-box { background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333; }
         .stat-value { font-size: 24px; font-weight: bold; color: #007bff; margin-top: 5px; }
@@ -63,7 +55,6 @@
 </head>
 <body>
 
-    <!-- Secure Login Overlay -->
     <div id="login-screen">
         <div class="login-box">
             <h2 style="margin-top:0;">Command Center</h2>
@@ -75,9 +66,7 @@
         </div>
     </div>
 
-    <!-- Main Dashboard -->
     <div id="dashboard">
-        
         <div id="top-nav">
             <h3 style="margin:0; color: #fff;">🛰️ Fleet Telemetry</h3>
             <div class="nav-controls">
@@ -97,25 +86,21 @@
             
             <div id="sidebar">
                 <h4 style="margin: 0; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 10px;">RIDE ANALYTICS</h4>
-                
                 <div class="stat-box">
                     <div class="stat-label">Total Distance</div>
                     <div id="stat-dist" class="stat-value">-- km</div>
                 </div>
-                
                 <div class="stat-box">
                     <div class="stat-label">Data Points</div>
                     <div id="stat-points" class="stat-value">--</div>
                 </div>
-
                 <button id="play-btn" class="btn" onclick="playAnimatedRoute()">▶ PLAY ROUTE</button>
             </div>
         </div>
-        
     </div>
 
     <script>
-        // --- 1. CONFIGURATION ---
+        // 1. CONFIGURATION
         const keyPartA = "AIzaSyB8IdMO";
         const keyPartB = "qZlzZrJghi0y";
         const keyPartC = "kiZBrHEI2SNnTsU";
@@ -132,7 +117,7 @@
         let lastPingTime = 0;
         let currentRouteCoords = [];
 
-        // --- 2. AUTHENTICATION & INIT ---
+        // 2. AUTHENTICATION & INIT
         function adminLogin() {
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
@@ -156,19 +141,17 @@
             
             fetchRideHistory();
             startHeartbeatMonitor();
-            switchMode(); // Load default view
+            switchMode(); 
         }
 
-        // --- 3. THE HEARTBEAT MONITOR ---
+        // 3. HEARTBEAT MONITOR (Updated to 60 Seconds)
         function startHeartbeatMonitor() {
-            // Listen to the Live Node
             firebase.database().ref('/tracker/live').on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data && data.lat && data.lng) {
                     lastPingTime = Date.now();
                     updateStatusUI(true);
 
-                    // Update live marker if we are in live mode
                     if (document.getElementById('ride-selector').value === 'live') {
                         const newPos = new L.LatLng(data.lat, data.lng);
                         if (!liveMarker) {
@@ -182,9 +165,9 @@
                 }
             });
 
-            // Check every 5 seconds if the ESP32 died
+            // Check every 5 seconds, but allow up to 60 seconds of silence before marking OFFLINE
             setInterval(() => {
-                if (Date.now() - lastPingTime > 15000) { // 15 seconds without data = offline
+                if (Date.now() - lastPingTime > 60000) { 
                     updateStatusUI(false);
                 }
             }, 5000);
@@ -204,14 +187,25 @@
             }
         }
 
-        // --- 4. HISTORY & ANALYTICS ---
+        // 4. HISTORY & ANALYTICS (Fixed Dropdown Logic)
         function fetchRideHistory() {
             firebase.database().ref('/tracker/history').once('value', (snapshot) => {
                 const selector = document.getElementById('ride-selector');
+                
+                // Keep ONLY the "Live Tracking" default option, wipe everything else to prevent duplicates
+                selector.innerHTML = '<option value="live">🔴 LIVE TRACKING</option>'; 
+                
+                let rides = [];
                 snapshot.forEach((child) => {
+                    rides.push(child.key);
+                });
+                
+                // Sort rides so the newest one is at the top of the list
+                rides.reverse().forEach((rideKey) => {
                     const opt = document.createElement('option');
-                    opt.value = child.key;
-                    opt.innerText = "🗓️ " + child.key.replace('ride_', '').replace('_', ' | Time: ');
+                    opt.value = rideKey;
+                    // Format: "🗓️ 2026-09-04 | Time: 04-48"
+                    opt.innerText = "🗓️ " + rideKey.replace('ride_', '').replace('_', ' | Time: ');
                     selector.appendChild(opt);
                 });
             });
@@ -220,7 +214,6 @@
         function switchMode() {
             const mode = document.getElementById('ride-selector').value;
             
-            // Clear Map
             if (liveMarker) { map.removeLayer(liveMarker); liveMarker = null; }
             if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
             if (animationMarker) { map.removeLayer(animationMarker); animationMarker = null; }
@@ -232,6 +225,8 @@
             } else {
                 document.getElementById('stat-dist').innerText = "-- km";
                 document.getElementById('stat-points').innerText = "LIVE";
+                // Snap back to live marker if we have data
+                if(lastPingTime > 0 && (Date.now() - lastPingTime < 60000)) updateStatusUI(true); 
             }
         }
 
@@ -251,7 +246,6 @@
                     routeLine = L.polyline(currentRouteCoords, {color: '#007bff', weight: 4, opacity: 0.8}).addTo(map);
                     map.fitBounds(routeLine.getBounds());
                     
-                    // Calculate Analytics
                     let totalKm = 0;
                     for (let i = 0; i < currentRouteCoords.length - 1; i++) {
                         totalKm += calculateHaversine(currentRouteCoords[i][0], currentRouteCoords[i][1], currentRouteCoords[i+1][0], currentRouteCoords[i+1][1]);
@@ -263,10 +257,9 @@
             });
         }
 
-        // --- 5. MATH & ANIMATION ---
-        // Haversine Formula for Distance Calculation
+        // 5. MATH & ANIMATION
         function calculateHaversine(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Earth Radius in km
+            const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
@@ -290,7 +283,7 @@
                 if (i < currentRouteCoords.length) {
                     animationMarker.setLatLng(currentRouteCoords[i]);
                     i++;
-                    setTimeout(moveMarker, 200); // Speed of animation
+                    setTimeout(moveMarker, 200); 
                 } else {
                     btn.disabled = false;
                     btn.innerText = "▶ PLAY ROUTE";
