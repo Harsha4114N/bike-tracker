@@ -144,41 +144,33 @@
         function startHeartbeatMonitor() {
             firebase.database().ref('/tracker/live').on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (data && data.lat && data.lng && data.lastSeen) {
-                    const currentTime = Date.now();
-                    const packetAge = currentTime - data.lastSeen;
+                if (data && data.lat && data.lng) {
+                    lastPingTime = Date.now();
+                    updateStatusUI(true);
 
-                    if (packetAge < 60000) {
-                        lastPingTime = currentTime;
-                        updateStatusUI(true);
-
-                        if (document.getElementById('ride-selector').value === 'live') {
-                            const newPos = new L.LatLng(data.lat, data.lng);
-                            if (!liveMarker) {
-                                const bikeIcon = L.icon({ 
-                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
-                                    iconSize: [25, 41], 
-                                    iconAnchor: [12, 41]
-                                });
-                                liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
-                            } else {
-                                liveMarker.setLatLng(newPos);
-                            }
-                            map.setView(newPos, 16);
+                    if (document.getElementById('ride-selector').value === 'live') {
+                        const newPos = new L.LatLng(data.lat, data.lng);
+                        if (!liveMarker) {
+                            const bikeIcon = L.icon({ 
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
+                                iconSize: [25, 41], 
+                                iconAnchor: [12, 41]
+                            });
+                            liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
+                        } else {
+                            liveMarker.setLatLng(newPos);
                         }
-                    } else {
-                        updateStatusUI(false);
+                        map.setView(newPos, 16);
                     }
-                } else {
-                    updateStatusUI(false);
                 }
             });
 
+            // Mark offline if 60s pass without receiving a new Firebase event
             setInterval(() => {
                 if (Date.now() - lastPingTime > 60000) { 
                     updateStatusUI(false);
                 }
-            }, 5000);
+            }, 3000);
         }
 
         function updateStatusUI(isLive) {
