@@ -148,33 +148,36 @@
             switchMode(); 
         }
 
-        function startHeartbeatMonitor() {
-            // Dual-path listener to prevent path mismatches
-            const processData = (data) => {
-                if (data && data.lat !== undefined && data.lng !== undefined) {
-                    lastPingTime = Date.now();
-                    updateStatusUI(true);
+        function updateLiveMarker(lat, lng) {
+            lastPingTime = Date.now();
+            updateStatusUI(true);
 
-                    if (document.getElementById('ride-selector').value === 'live') {
-                        const newPos = new L.LatLng(Number(data.lat), Number(data.lng));
-                        if (!liveMarker) {
-                            const bikeIcon = L.icon({ 
-                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
-                                iconSize: [25, 41], 
-                                iconAnchor: [12, 41]
-                            });
-                            liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
-                        } else {
-                            liveMarker.setLatLng(newPos);
-                        }
-                        map.setView(newPos, 16);
-                    }
+            if (document.getElementById('ride-selector').value === 'live') {
+                const newPos = new L.LatLng(Number(lat), Number(lng));
+                if (!liveMarker) {
+                    const bikeIcon = L.icon({ 
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', 
+                        iconSize: [25, 41], 
+                        iconAnchor: [12, 41]
+                    });
+                    liveMarker = L.marker(newPos, {icon: bikeIcon}).addTo(map);
+                } else {
+                    liveMarker.setLatLng(newPos);
                 }
-            };
+                map.setView(newPos, 16);
+            }
+        }
 
-            firebase.database().ref('/tracker/live').on('value', (snap) => processData(snap.val()));
-            firebase.database().ref('/live').on('value', (snap) => processData(snap.val()));
+        function startHeartbeatMonitor() {
+            // Direct Live Node Listener
+            firebase.database().ref('/tracker/live').on('value', (snap) => {
+                const data = snap.val();
+                if (data && data.lat !== undefined && data.lng !== undefined) {
+                    updateLiveMarker(data.lat, data.lng);
+                }
+            });
 
+            // Offline Watchdog
             setInterval(() => {
                 if (lastPingTime > 0 && (Date.now() - lastPingTime > 30000)) { 
                     updateStatusUI(false);
@@ -197,11 +200,13 @@
         }
 
         function listenToHistoryUpdates() {
-            const renderHistory = (snapshot) => {
+            firebase.database().ref('/tracker/history').on('value', (snapshot) => {
                 const selector = document.getElementById('ride-selector');
                 const activeSelection = selector.value;
                 
                 let ridesList = [];
+                let latestPoint = null;
+
                 snapshot.forEach((child) => {
                     ridesList.push({ key: child.key, val: child.val() });
                 });
@@ -219,6 +224,9 @@
                     for (let pk in pointsObj) {
                         if (pointsObj[pk] && pointsObj[pk].ts) {
                             timestamps.push(pointsObj[pk].ts);
+                        }
+                        if (idx === 0) {
+                            latestPoint = pointsObj[pk];
                         }
                     }
 
@@ -243,15 +251,17 @@
                     optionsHTML += `<option value="${item.key}">${labelText}</option>`;
                 });
 
+                // Secondary live fallback from history stream
+                if (latestPoint && (Date.now() - latestPoint.ts < 30000)) {
+                    updateLiveMarker(latestPoint.lat, latestPoint.lng);
+                }
+
                 selector.innerHTML = optionsHTML;
 
                 if (activeSelection && selector.querySelector(`option[value="${activeSelection}"]`)) {
                     selector.value = activeSelection;
                 }
-            };
-
-            firebase.database().ref('/tracker/history').on('value', renderHistory);
-            firebase.database().ref('/history').on('value', renderHistory);
+            });
         }
 
         function switchMode() {
@@ -272,7 +282,7 @@
         }
 
         function loadPastRoute(rideId) {
-            const processRoute = (snapshot) => {
+            firebase.database().ref('/tracker/history/' + rideId).once('value', (snapshot) => {
                 const data = snapshot.val();
                 if (!data) return;
 
@@ -296,10 +306,7 @@
                     document.getElementById('stat-dist').innerText = totalKm.toFixed(2) + " km";
                     document.getElementById('stat-points').innerText = currentRouteCoords.length;
                 }
-            };
-
-            firebase.database().ref('/tracker/history/' + rideId).once('value', processRoute);
-            firebase.database().ref('/history/' + rideId).once('value', processRoute);
+            });
         }
 
         function calculateHaversine(lat1, lon1, lat2, lon2) {
